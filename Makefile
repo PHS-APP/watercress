@@ -1,5 +1,10 @@
 CC = gcc
 CFLAGS = -O0 -std=c99 -pedantic-errors
 
-watercress: watercress.c
-	$(CC) $(CFLAGS) -o watercress watercress.c
+all: bin bin/watercress
+
+bin:
+	mkdir bin
+
+bin/watercress: src/watercress.c
+	$(CC) $(CFLAGS) -o bin/watercress src/watercress.c
