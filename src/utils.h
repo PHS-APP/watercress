@@ -55,13 +55,11 @@ typedef struct LinkedListNode {
 typedef struct LinkedList {
     LinkedListNode* head;
     LinkedListNode* tail;
-    size_t itemsize;
     uint size;
 } LinkedList;
 
-LinkedList* linkedlist_create(size_t itemsize) {
+LinkedList* linkedlist_create() {
     LinkedList* list = (LinkedList*) malloc(sizeof(LinkedList));
-    list->itemsize = itemsize;
     list->head = 0;
     list->tail = 0;
     list->size = 0;
