@@ -1,0 +1,15 @@
+features:
+algebraic types (struct + Rust style enum)
+syntactic sugar
+mutable globals
+pure/impure
+FFI
+standard operators
+
+FFI:
+tsj845's proposal:
+    FFI is done via wrapper functions
+    these functions are created using an explicit marker
+    these functions are the only way to call foreign functions
+    data returned by foreign functions cannot leave the wrapper function, it must be copied to a Watercress-native data structure
+    wrapper functions are responsable for any necessary deallocation of foreign objects

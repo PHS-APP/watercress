@@ -1,6 +1,7 @@
 #ifndef __TOKENS_H__
 #define __TOKENS_H__ 1
 #include "./types.h"
+#include "./utils.h"
 
 typedef enum TokenType {
     Node, // groups tokens together to make interacting with the AST easier
@@ -32,7 +33,7 @@ typedef union TokenData {
     ushort keyword, operator, modifier;
     long integer;
     double floating;
-    Token *group, *statement, *node;
+    LinkedList *group, *statement, *node;
     void* meta;
     AsmToken* assembly;
 } TokenData;
@@ -42,7 +43,6 @@ typedef struct Token {
     long line, column;
     char* file;
     TokenData data;
-    Token* next;
 } Token;
 
 /*

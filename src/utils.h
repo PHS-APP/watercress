@@ -46,6 +46,12 @@ int startswith(const char* str, const char* pre) {
     return 0;
 }
 
+typedef int(*LinkedListEq)(void*, void*);
+
+int linkedlist_pointereq(void* p1, void* p2) {
+    return p1 == p2;
+}
+
 typedef struct LinkedListNode {
     struct LinkedListNode* next;
     struct LinkedListNode* prev;
@@ -56,13 +62,15 @@ typedef struct LinkedList {
     LinkedListNode* head;
     LinkedListNode* tail;
     uint size;
+    LinkedListEq eq;
 } LinkedList;
 
-LinkedList* linkedlist_create(void) {
+LinkedList* linkedlist_create(LinkedListEq eq) {
     LinkedList* list = (LinkedList*) malloc(sizeof(LinkedList));
     list->head = 0;
     list->tail = 0;
     list->size = 0;
+    list->eq = eq;
     return list;
 }
 void linkedlist_destroy(LinkedList* list) {
@@ -91,6 +99,22 @@ void linkedlist_destroy_node(LinkedListNode* node) {
         free(node->data);
     }
     free(node);
+}
+/*
+returns the 1-based index of the value in the list
+returns zero if the value was not found
+*/
+uint linkedlist_indexof(LinkedList* list, void* value) {
+    LinkedListNode* curr = list->head;
+    uint i = 1;
+    while (curr) {
+        if (list->eq(curr->data, value)) {
+            return i;
+        }
+        i ++;
+        curr = curr->next;
+    }
+    return 0;
 }
 /*
 creates a new node with the given data pointer and appends it to the list
