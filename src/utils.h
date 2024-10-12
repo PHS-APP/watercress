@@ -58,7 +58,7 @@ typedef struct LinkedList {
     uint size;
 } LinkedList;
 
-LinkedList* linkedlist_create() {
+LinkedList* linkedlist_create(void) {
     LinkedList* list = (LinkedList*) malloc(sizeof(LinkedList));
     list->head = 0;
     list->tail = 0;
@@ -280,6 +280,110 @@ void* linkedlist_remove_at(LinkedList* list, uint index) {
     }
     LinkedListNode* cnode = linkedlist_get(list, index+1);
     return linkedlist_remove_prev(list, cnode);
+}
+
+typedef struct HashMapEntry {
+  void *key;
+  void *value;
+} HashMapEntry;
+
+typedef struct HashMap {
+  long (*h1)(void*);
+  long (*h2)(void*);
+  int (*eq)(void*, void*);
+  int size;
+  int entries;
+  HashMapEntry *table; 
+} HashMap;
+
+HashMap *hashmap_create(long (*h1)(void*), long (*h2)(void*), int (*eq)(void*, void*)) {
+    HashMap *map = (HashMap *)malloc(sizeof(HashMap));
+    map->h1 = h1;
+    map->h2 = h2;
+    map->eq = eq;
+    map->size = 17;
+    map->entries = 0;
+    map->table = (HashMapEntry *)malloc(sizeof(HashMapEntry)*map->size);
+
+    for (int i = 0; i < map->size; i++) {
+        map->table[i].key = NULL;
+    }
+
+    return map;
+}
+
+void hashmap_destroy(HashMap *map) {
+    free(map->table);
+    free(map);
+}
+
+void hashmap_expand(HashMap *map);
+
+void hashmap_set(HashMap *map, void *key, void *value) {
+    int a = (map->h1)(key);
+    int b = (map->h2)(key);
+
+    for (int i = 0; i < map->entries+1; i++) {
+        int index = (a+b*i) % (map->size);
+        if (map->table[index].key == NULL || (map->eq)(map->table[index].key, key)) {
+            map->table[index].key = key;
+            map->table[index].value = value;
+            map->entries++;
+
+            if (map->entries * 2 > map->size) {
+                hashmap_expand(map);
+            }
+            return;
+        }
+    }
+
+    // there has been a BIG error. don't do anything...
+    return;
+}
+
+void *hashmap_get(HashMap *map, void *key) {
+    int a = (map->h1)(key);
+    int b = (map->h2)(key);
+    for (int i = 0; i < map->entries; i++) {
+        int index = (a+b*i) % (map->size);
+        if ((map->eq)(map->table[index].key, key)) {
+            return map->table[index].value;
+        }
+    }
+
+    return NULL;
+}
+
+void hashmap_expand(HashMap *map) {
+    HashMapEntry *old_table = map->table;
+    int old_size = map->size;
+    map->size = map->size * 2 + 1;
+    map->table = (HashMapEntry *)malloc(sizeof(HashMapEntry)*(map->size));
+
+    for (int i = 0; i < map->size; i++) {
+        map->table[i].key = NULL;
+    }
+
+    
+    for (int i = 0; i < old_size; i++) {
+        if (old_table[i].key) {
+            hashmap_set(map, old_table[i].key, old_table[i].value);
+        }
+    }
+
+    free(old_table);
+}
+
+/* int streq(void *a, void *b) { */
+    /* return !strcmp(a, b); */
+/* } */
+
+int inteq(void *a, void *b) {
+    return a == b;
+}
+
+long ident(void *a) {
+    return (long)a;
 }
 
 #endif
