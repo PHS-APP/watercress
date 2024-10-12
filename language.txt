@@ -1,10 +1,10 @@
-features:
+Features:
 algebraic types (struct + Rust style enum)
 syntactic sugar
-mutable globals
+mutable globals (future)
 pure/impure
 FFI
-standard operators
+standard operators + some extra
 
 FFI:
 tsj845's proposal:
@@ -13,3 +13,52 @@ tsj845's proposal:
     these functions are the only way to call foreign functions
     data returned by foreign functions cannot leave the wrapper function, it must be copied to a Watercress-native data structure
     wrapper functions are responsable for any necessary deallocation of foreign objects
+
+Funcions:
+func - pure function
+dfunc - 'dirty' funciton, can have side effects (like global state modification) and make calls to ffunc
+mfunc - main function, alias of dfunc, but differentiated so programmers don't learn to use dfunc for everything
+ffunc - foreign function wrapper
+
+Data Structures:
+primitives - builtin base types
+prod - product types (structs)
+sum - sum types (Rust enum)
+union - same as C union
+
+Memory Management (radicise's idea as understood by tsj845):
+prod Container
+    // member "child" is a reference to another Container that may be null, "child" defaults to null
+    &?Container child = null
+end
+
+func A(): void
+    contA: Container = Container() // contA is created and tagged with the scope of function A
+    B(&contA)
+end // contA is now freed because the function it is tagged with has ended
+
+func B(contA: &Container): void
+    contB: Container = Container() // contB is created and tagged with the scope of function A
+    contC: &Container = C(&contB) // contC now is tagged with function B
+    contB.child = contA // contB now has the child field populated by contA
+end // contB and contC are freed because it is tagged with a function that has ended, but contA, despite being the value of a member of contB, is not freed because the function it is tagged with is still alive
+
+func C(contB: &Container): &Container
+    contC: Container = Container() // contC is created with function C's tag
+    return &contC // contC is now tagged with function B
+end // contC is not freed because it has been re-tagged with function B's tag
+
+
+additional operators (not finalized):
+& - the reference operator, signals that the value is a reference, this makes no difference to how data structures are interacted with, but allows programmers to specify if a structure should not be passed by value
+
+? - the optional operator, explicitly allows references to be null
+
+Primitives (not finalized):
+[s|u][8|16|32|64|128?] - signed and unsigned integer types
+f[32|64] - float and double
+bool - u8 restricted to one and zero
+char - undecided
+[*][] - array of '*'s
+void - valid for return types only, specifies no return
+complex? - a complex number
