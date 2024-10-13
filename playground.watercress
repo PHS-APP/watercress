@@ -9,9 +9,7 @@ block comment
 
 import/use * from std
 
-// ERROR, globally scoped statements cannot end with semicolons
-// this is because multiple globally scoped statements can NEVER be placed on the same line
-const X: int = 2;
+const X: int = 2
 global Y: int = 3
 
 // ERROR, double import + imports must come before all declarations
@@ -27,7 +25,7 @@ ffunc C malloc(size: int): rawptr
 end
 
 // ERROR, globals and consts MUST be declared before all other declaration types
-global Z: int = 0;
+global Z: int = 0
 
 ffunc C free(ptr: rawptr): void
     free(ptr)
@@ -35,9 +33,9 @@ end
 
 dfunc to_cstr(s: str): rawptr
     sp: rawptr = malloc(fmtstr.len() + 1)
-    for (i: int = 0, i < fmtstr.len(); i ++) {
+    for (i: int = 0, i < fmtstr.len(); i ++)
         sp[i] = fmtstr[i]
-    }
+    end
     return sp
 end
 
@@ -65,6 +63,7 @@ func boo(delta: int): void
 end
 
 mfunc main(args: str[]): int
-    println("%d", bar(2));foo("Hello, world!")
+    println("%d", bar(2))
+    foo("Hello, world!")
     return 0
 end

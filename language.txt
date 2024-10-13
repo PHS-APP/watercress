@@ -15,10 +15,14 @@ tsj845's proposal:
     wrapper functions are responsable for any necessary deallocation of foreign objects
 
 Funcions:
+all functions support overloading, but functions declared with different keywords cannot share a name
 func - pure function
 dfunc - 'dirty' funciton, can have side effects (like global state modification) and make calls to ffunc
 mfunc - main function, alias of dfunc, but differentiated so programmers don't learn to use dfunc for everything
 ffunc - foreign function wrapper
+
+return type can be any defined type or primitive, but can additionally be 'void' for no return value
+'void' is optional for functions with no return, with the exception of stub functions, it is an error to have 'void' as the return value of a pure function
 
 Data Structures:
 primitives - builtin base types
@@ -60,5 +64,5 @@ f[32|64] - float and double
 bool - u8 restricted to one and zero
 char - undecided
 [*][] - array of '*'s
-void - valid for return types only, specifies no return
 complex? - a complex number
+null - an unset value
