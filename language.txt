@@ -6,6 +6,16 @@ pure/impure
 FFI
 standard operators + some extra
 
+Standard Lib:
+BY DEFAULT, certain [libraries] are used (similar to the rust prelude)
+these are separated into:
+core - core functionality: memory management (the default allocator), etc. All 'core' items are used
+std - standard functionality: io, 'str', etc. Only certain items are used
+
+to not use default 'std' items, specify "@nodefaultstd" in the file containing the main func
+to not use ANY 'std' items (attempting to use them would be an error), specify "@nostd"
+to not use ANY 'core' OR 'std' items, specify "@nocore" NOTE: in this case, an allocator MUST be manually specified
+
 FFI:
 tsj845's proposal:
     FFI is done via wrapper functions
@@ -18,7 +28,7 @@ Funcions:
 all functions support overloading, but functions declared with different keywords cannot share a name
 pure func - pure function
 TBD func - impure funciton, can have side effects (like global state modification) and make calls to foreign func
-main func - main function, alias of dfunc, but differentiated so programmers don't learn to use dfunc for everything
+main func - main function, is itself impure, multiple definitions is an error, main func has no name (it's declared as "main func(args)")
 foreign '[abi]' func - foreign function wrapper
 
 return type can be any defined type or primitive, but can additionally be 'void' for no return value

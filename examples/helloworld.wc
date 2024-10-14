@@ -1,0 +1,5 @@
+use * of std.io
+
+main func(args)
+    println("Hello, World!")
+end

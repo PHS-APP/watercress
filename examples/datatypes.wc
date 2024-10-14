@@ -1,0 +1,13 @@
+
+new type X = u8
+new type Y = s8
+
+sum XY
+    X(X)
+    Y(Y)
+end
+
+prod Score
+    name: str
+    points: u16
+end
