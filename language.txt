@@ -16,10 +16,10 @@ tsj845's proposal:
 
 Funcions:
 all functions support overloading, but functions declared with different keywords cannot share a name
-func - pure function
-dfunc - 'dirty' funciton, can have side effects (like global state modification) and make calls to ffunc
-mfunc - main function, alias of dfunc, but differentiated so programmers don't learn to use dfunc for everything
-ffunc - foreign function wrapper
+pure func - pure function
+TBD func - impure funciton, can have side effects (like global state modification) and make calls to foreign func
+main func - main function, alias of dfunc, but differentiated so programmers don't learn to use dfunc for everything
+foreign '[abi]' func - foreign function wrapper
 
 return type can be any defined type or primitive, but can additionally be 'void' for no return value
 'void' is optional for functions with no return, with the exception of stub functions, it is an error to have 'void' as the return value of a pure function
