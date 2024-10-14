@@ -46,7 +46,7 @@ int startswith(const char* str, const char* pre) {
     return 0;
 }
 
-typedef int(*LinkedListEq)(void*, void*);
+typedef int(*ItemEq)(void*, void*);
 
 int linkedlist_pointereq(void* p1, void* p2) {
     return p1 == p2;
@@ -62,10 +62,10 @@ typedef struct LinkedList {
     LinkedListNode* head;
     LinkedListNode* tail;
     uint size;
-    LinkedListEq eq;
+    ItemEq eq;
 } LinkedList;
 
-LinkedList* linkedlist_create(LinkedListEq eq) {
+LinkedList* linkedlist_create(ItemEq eq) {
     LinkedList* list = (LinkedList*) malloc(sizeof(LinkedList));
     list->head = 0;
     list->tail = 0;
@@ -304,6 +304,147 @@ void* linkedlist_remove_at(LinkedList* list, uint index) {
     }
     LinkedListNode* cnode = linkedlist_get(list, index+1);
     return linkedlist_remove_prev(list, cnode);
+}
+
+typedef struct DynList {
+    uint len;
+    uint cap;
+    void** ptr;
+    ItemEq eq;
+} DynList;
+
+DynList* dynlist_create(ItemEq eq) {
+    DynList* list = (DynList*)malloc(sizeof(DynList));
+    list->len = 0;
+    list->cap = 2;
+    list->ptr = (void**)malloc(sizeof(void*)*2);
+    list->eq = eq;
+    return list;
+}
+/*
+returns the one-based index of the given value in the list
+returns zero if the value was not found
+*/
+uint dynlist_indexof(DynList* list, void* value) {
+    for (uint i = 0; i < list->len; i ++) {
+        if (list->eq(list->ptr[i], value)) {
+            return i+1;
+        }
+    }
+    return 0;
+}
+void dynlist_destroy(DynList* list) {
+    free(list->ptr);
+    free(list);
+}
+void dynlist_expand(DynList* list) {
+    list->cap *= 2;
+    void** np = (void**)malloc(sizeof(void*)*(list->cap));
+    memcpy(np, list->ptr, (size_t)(list->len));
+    free(list->ptr);
+    list->ptr = np;
+}
+void dynlist_contract(DynList* list) {
+    list->cap /= 2;
+    void** np = (void**)malloc(sizeof(void*)*(list->cap));
+    memcpy(np, list->ptr, (size_t)(list->len));
+    free(list->ptr);
+    list->ptr = np;
+}
+/*
+returns the value at the specified index
+returns NULL if the index was out of bounds
+*/
+void* dynlist_get(DynList* list, uint index) {
+    if (index >= list->len) return NULL;
+    return list->ptr[index];
+}
+/*
+sets the specified index to the given value
+returns zero on success, -1 if the index was out of bounds or the value was NULL
+*/
+int dynlist_set(DynList* list, uint index, void* value) {
+    if (index >= list->len || value == NULL) return -1;
+    list->ptr[index] = value;
+    return 0;
+}
+/*
+appends the given value to the end of the list
+returns zero on success, -1 if the value was NULL
+*/
+int dynlist_push(DynList* list, void* value) {
+    if (value == NULL) return -1;
+    if (list->len == list->cap) {
+        dynlist_expand(list);
+    }
+    (list->ptr)[list->len++] = value;
+    return 0;
+}
+/*
+removes and returns the value at the end of the list
+returns NULL if the list was empty
+*/
+void* dynlist_pop(DynList* list) {
+    if (list->len == 0) return NULL;
+    void* ret = (list->ptr)[--list->len];
+    if (list->len*4 <= list->cap) {
+        dynlist_contract(list);
+    }
+    return ret;
+}
+/*
+inserts the given value at the specified index
+returns zero on success, -1 if the index was out of bounds or the given value was NULL
+*/
+int dynlist_insert(DynList* list, uint index, void* value) {
+    if (index > list->len || value == NULL) return -1;
+    if (index == list->len) {
+        dynlist_push(list, value);
+        return 0;
+    }
+    if (list->len == list->cap) {
+        list->cap *= 2;
+        void** np = (void**)malloc(sizeof(void*)*(list->cap));
+        if (index > 0) {
+            memcpy(np, list->ptr, (size_t)index);
+        }
+        memcpy(np+index+1, list->ptr+index, (size_t)(list->len-index));
+        np[index] = value;
+        free(list->ptr);
+        list->ptr = np;
+        list->len ++;
+        return 0;
+    }
+    for (uint i = (list->len-1); i >= index; i --) {
+        list->ptr[i+1] = list->ptr[i];
+    }
+    list->ptr[index] = value;
+    list->len ++;
+    return 0;
+}
+/*
+removes and returns the value at the specified index
+returns NULL if the index was out of bounds
+*/
+void* dynlist_remove(DynList* list, uint index) {
+    if (index >= list->len) return NULL;
+    list->len --;
+    void* ret = list->ptr[index];
+    if (list->len*4 <= list->cap) {
+        list->cap /= 2;
+        void** np = (void**)malloc(sizeof(void*)*(list->cap));
+        if (index > 0) {
+            memcpy(np, list->ptr, index);
+        }
+        memcpy(np+index, list->ptr+index+1, (size_t)(list->len-index));
+        free(list->ptr);
+        list->ptr = np;
+        return ret;
+    }
+    for (uint i = index; i < list->len; i ++) {
+        list->ptr[i] = list->ptr[i+1];
+    }
+    return ret;
 }
 
 typedef struct HashMapEntry {
