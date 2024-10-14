@@ -48,7 +48,7 @@ int startswith(const char* str, const char* pre) {
 
 typedef int(*ItemEq)(void*, void*);
 
-int linkedlist_pointereq(void* p1, void* p2) {
+int pointereq(void* p1, void* p2) {
     return p1 == p2;
 }
 
@@ -340,14 +340,20 @@ void dynlist_destroy(DynList* list) {
 void dynlist_expand(DynList* list) {
     list->cap *= 2;
     void** np = (void**)malloc(sizeof(void*)*(list->cap));
-    memcpy(np, list->ptr, (size_t)(list->len));
+    for (uint i = 0; i < list->len; i ++) {
+        np[i] = list->ptr[i];
+    }
+    // memcpy(np, list->ptr, (size_t)(list->len));
     free(list->ptr);
     list->ptr = np;
 }
 void dynlist_contract(DynList* list) {
     list->cap /= 2;
     void** np = (void**)malloc(sizeof(void*)*(list->cap));
-    memcpy(np, list->ptr, (size_t)(list->len));
+    for (uint i = 0; i < list->len; i ++) {
+        np[i] = list->ptr[i];
+    }
+    // memcpy(np, list->ptr, (size_t)(list->len));
     free(list->ptr);
     list->ptr = np;
 }
@@ -406,9 +412,15 @@ int dynlist_insert(DynList* list, uint index, void* value) {
         list->cap *= 2;
         void** np = (void**)malloc(sizeof(void*)*(list->cap));
         if (index > 0) {
-            memcpy(np, list->ptr, (size_t)index);
+            for (uint i = 0; i < index; i ++) {
+                np[i] = list->ptr[i];
+            }
+            // memcpy(np, list->ptr, (size_t)index);
         }
-        memcpy(np+index+1, list->ptr+index, (size_t)(list->len-index));
+        for (uint i = index; i < (list->len - index); i ++) {
+            np[i+1] = list->ptr[i];
+        }
+        // memcpy(np+index+1, list->ptr+index, (size_t)(list->len-index));
         np[index] = value;
         free(list->ptr);
         list->ptr = np;
@@ -434,9 +446,15 @@ void* dynlist_remove(DynList* list, uint index) {
         list->cap /= 2;
         void** np = (void**)malloc(sizeof(void*)*(list->cap));
         if (index > 0) {
-            memcpy(np, list->ptr, index);
+            for (uint i = 0; i < index; i ++) {
+                np[i] = list->ptr[i];
+            }
+            // memcpy(np, list->ptr, index);
         }
-        memcpy(np+index, list->ptr+index+1, (size_t)(list->len-index));
+        for (uint i = index; i < (list->len - index); i ++) {
+            np[i] = list->ptr[i+1];
+        }
+        // memcpy(np+index, list->ptr+index+1, (size_t)(list->len-index));
         free(list->ptr);
         list->ptr = np;
         return ret;
