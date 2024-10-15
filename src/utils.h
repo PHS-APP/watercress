@@ -334,6 +334,9 @@ uint dynlist_indexof(DynList* list, void* value) {
     return 0;
 }
 void dynlist_destroy(DynList* list) {
+    for (uint i = 0; i < list->len; i ++) {
+        free(list->ptr[i]);
+    }
     free(list->ptr);
     free(list);
 }
@@ -465,21 +468,110 @@ void* dynlist_remove(DynList* list, uint index) {
     return ret;
 }
 
+/*
+returns a DynList with the same contents as the LinkedList
+the LinkedList is destroyed
+*/
+DynList* linkedlist_flatten(LinkedList* list) {
+    uint l = 2;
+    while (l < list->size) {
+        l = l << 1;
+    }
+    DynList* dlist = (DynList*)malloc(sizeof(dlist));
+    dlist->eq = list->eq;
+    dlist->cap = l;
+    dlist->len = list->size;
+    dlist->ptr = (void**)malloc(sizeof(void*)*(list->size));
+    uint i = 0;
+    LinkedListNode* curr = list->head;
+    LinkedListNode* next = 0;
+    while (curr) {
+        dlist->ptr[i++] = curr->data;
+        next = curr->next;
+        free(curr);
+        curr = next;
+    }
+    free(list);
+    return dlist;
+}
+
+typedef struct StrBuf {
+    size_t cap;
+    size_t len;
+    char* ptr;
+} StrBuf;
+
+StrBuf* strbuf_create(void) {
+    StrBuf* buf = (StrBuf*)malloc(sizeof(StrBuf));
+    buf->cap = 8;
+    buf->len = 0;
+    buf->ptr = (char*)malloc(sizeof(char)*8);
+    return buf;
+}
+void strbuf_destroy(StrBuf* buf) {
+    free(buf->ptr);
+    free(buf);
+}
+void strbuf_push(StrBuf* buf, char c) {
+    if (buf->len == (buf->cap-1)) {
+        buf->cap *= 2;
+        char* np = (char*)malloc(sizeof(char)*(buf->cap));
+        for (size_t i = 0; i < buf->len; i ++) {
+            np[i] = buf->ptr[i];
+        }
+        free(buf->ptr);
+        buf->ptr = np;
+    }
+    buf->ptr[buf->len++] = c;
+}
+/*
+resets the strbuf
+*/
+void strbuf_discard(StrBuf* buf) {
+    if (buf->cap == 8) {
+        for (size_t i = 0; i < buf->len; i ++) {
+            buf->ptr[i] = 0;
+        }
+    } else {
+        buf->cap = 8;
+        free(buf->ptr);
+        buf->ptr = (char*)malloc(sizeof(char)*8);
+    }
+    buf->len = 0;
+}
+/*
+creates and returns a new char buf that contains all the characters with no extra space
+resets the buffer to default
+*/
+char* strbuf_consume(StrBuf* buf) {
+    char* cbuf = (char*)malloc(buf->len+1);
+    for (size_t i = 0; i < buf->len; i ++) {
+        cbuf[i] = buf->ptr[i];
+    }
+    free(buf->ptr);
+    buf->ptr = (char*)malloc(sizeof(char)*8);
+    buf->cap = 8;
+    buf->len = 0;
+    return cbuf;
+}
+
+typedef long(*HashFunc)(void*);
+
 typedef struct HashMapEntry {
   void *key;
   void *value;
 } HashMapEntry;
 
 typedef struct HashMap {
-  long (*h1)(void*);
-  long (*h2)(void*);
-  int (*eq)(void*, void*);
+  HashFunc h1;
+  HashFunc h2;
+  ItemEq eq;
   int size;
   int entries;
   HashMapEntry *table; 
 } HashMap;
 
-HashMap *hashmap_create(long (*h1)(void*), long (*h2)(void*), int (*eq)(void*, void*)) {
+HashMap *hashmap_create(HashFunc h1, HashFunc h2, ItemEq eq) {
     HashMap *map = (HashMap *)malloc(sizeof(HashMap));
     map->h1 = h1;
     map->h2 = h2;
@@ -496,6 +588,12 @@ HashMap *hashmap_create(long (*h1)(void*), long (*h2)(void*), int (*eq)(void*, v
 }
 
 void hashmap_destroy(HashMap *map) {
+    for (int i = 0; i < map->size; i ++) {
+        if (map->table[i].key != NULL) {
+            free(map->table[i].value);
+            free(map->table[i].key);
+        }
+    }
     free(map->table);
     free(map);
 }
@@ -561,8 +659,47 @@ void hashmap_expand(HashMap *map) {
     /* return !strcmp(a, b); */
 /* } */
 
+long hashstr(const void* strp) {
+    ubyte* str = (ubyte*)strp;
+    ulong hash = 0;
+    int c;
+    while ((c = *str++) != 0) {
+        hash = c + (hash << 6) + (hash << 16) - hash;
+    }
+    return *((long*)&hash);
+}
+
+long hashstr2(const void* strp) {
+    ubyte* str = (ubyte*)strp;
+    ulong hash = 0, h;
+    ubyte c;
+    while ((c = *str++) != 0) {
+        hash = (hash << 4) + c;
+        if ((h = hash & 0xf0000000)) {
+            hash ^= h >> 24;
+        }
+        hash &= ~h;
+    }
+    return *((long*)&h);
+}
+
+long hashsized(void* vdata, size_t size) {
+    ubyte* data = (ubyte*) vdata;
+    // printf("data size: %li\n", size);
+    ulong hash = 0;
+    int c;
+    while (size) {
+        c = *(data++);
+        // printf("%02x ", c);
+        hash = c + (hash << 6) + (hash << 16) - hash;
+        size --;
+    }
+    // putchar('\n');
+    return *((long*)&hash);
+}
+
 int inteq(void *a, void *b) {
-    return a == b;
+    return *((int*)a) == *((int*)b);
 }
 
 long ident(void *a) {

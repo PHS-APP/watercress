@@ -3,8 +3,30 @@
 #include "./types.h"
 #include "./utils.h"
 
+#define KEYWORD_FUNC 0
+#define KEYWORD_TYPEDEF 1
+#define KEYWORD_SUM 2
+#define KEYWORD_PROD 3
+#define KEYWORD_RETURN 4
+#define KEYWORD_IS 5
+#define KEYWORD_END 6
+#define KEYWORD_IF 7
+#define KEYWORD_ELSE 8
+#define KEYWORD_FOR 9
+#define KEYWORD_WHILE 10
+#define KEYWORD_LOOP 11
+#define KEYWORD_USE 12
+#define KEYWORD_OF 13
+#define KEYWORD_DO 14
+#define KEYWORD_BREAK 15
+#define KEYWORD_CONTINUE 16
+
+static char* TYPENAMEMAP[] = {"Node","Nmsp","Ident","Bool","Int","Float","Keyword","Operator","Char","String","Group","Stmt","Sep","Type","Mod","Asm","Meta"};
+static char* KEYWORDMAP[] = {"func", "typedef", "sum", "prod", "return", "is", "end", "if", "else", "for", "while", "loop", "use", "of", "do", "break", "continue"};
+
 typedef enum TokenType {
     Node, // groups tokens together to make interacting with the AST easier
+    Nmsp, // namespace'd tokens
     Ident, // identifier
     Bool, // boolean
     Int, // integer
@@ -25,17 +47,20 @@ typedef enum TokenType {
 
 typedef struct AsmToken {
     /* todo */
+    char v;
 } AsmToken;
 
+typedef struct NmspData {char* name;DynList* childnode;} NmspData;
 typedef union TokenData {
     char *string, *identifier, *type;
-    char character, boolean;
-    ushort keyword, operator, modifier;
+    char character, boolean, operator;
+    ushort keyword, modifier;
     long integer;
     double floating;
-    LinkedList *group, *statement, *node;
+    DynList *group, *statement, *node;
     void* meta;
     AsmToken* assembly;
+    NmspData* namespace;
 } TokenData;
 
 typedef struct Token {
@@ -44,6 +69,36 @@ typedef struct Token {
     char* file;
     TokenData data;
 } Token;
+
+Token* token_create(TokenType type, long line, long column, char* file, TokenData data) {
+    Token* tok = (Token*)malloc(sizeof(Token));
+    tok->type = type;
+    tok->line = line;
+    tok->column = column;
+    tok->file = file;
+    tok->data = data;
+    return tok;
+}
+void token_print(Token* tok) {
+    printf("Token {\n    type: %s,\n    src=(%li, %li, %s),\n    ", TYPENAMEMAP[tok->type], tok->line, tok->column, tok->file);
+    switch (tok->type) {
+        case Nmsp:printf("name: %s, ", tok->data.namespace->name);
+        case Group:case Stmt:
+        case Node:printf("children: [...]\n");break;
+        case Ident:printf("value: %s\n", tok->data.identifier);break;
+        case Bool:printf("value: %u\n", (int)tok->data.boolean);break;
+        case Int:printf("value: %li\n", tok->data.integer);break;
+        case Float:printf("value: %f\n", tok->data.floating);break;
+        case Keyword:printf("keyword: %s\n", KEYWORDMAP[tok->data.keyword]);break;
+        case Operator:printf("operator: %c\n", tok->data.operator);break;
+        case Char:printf("character: %c\n", tok->data.character);break;
+        case String:printf("value: \"%s\"\n", tok->data.string);break;
+        case Type:printf("value: %s\n", tok->data.type);break;
+        case Mod:printf("modid: %u\n", tok->data.modifier);break;
+        default:printf("novalue\n");break;
+    }
+    printf("}\n");
+}
 
 /*
 funcdef: Node(Keyword(func), Ident([name]), Group[Type([type1]), Ident([param1]), ...], Type([return type]), Node([body]))
