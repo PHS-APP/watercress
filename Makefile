@@ -6,5 +6,5 @@ all: bin bin/watercress
 bin:
 	mkdir bin
 
-bin/watercress: src/**
+bin/watercress: src/** src/parsing/*
 	$(CC) $(CFLAGS) -o bin/watercress src/watercress.c

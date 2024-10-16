@@ -1,5 +1,5 @@
 use * of std.io
 
-main func(args)
+impure func main()
     println("Hello, World!")
 end
