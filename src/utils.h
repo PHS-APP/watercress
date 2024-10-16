@@ -629,6 +629,8 @@ void *hashmap_get(HashMap *map, void *key) {
         int index = (a+b*i) % (map->size);
         if ((map->eq)(map->table[index].key, key)) {
             return map->table[index].value;
+        } else if (map->table[index].key == NULL) {
+            return NULL;
         }
     }
 
@@ -655,11 +657,23 @@ void hashmap_expand(HashMap *map) {
     free(old_table);
 }
 
-/* int streq(void *a, void *b) { */
-    /* return !strcmp(a, b); */
-/* } */
+HashMap *hashmap_copy(HashMap *original) {
+    HashMap *new = hashmap_create(original->h1, original->h2, original->eq);
 
-long hashstr(const void* strp) {
+    for (int i = 0; i < original->size; i++) {
+        if (original->table[i].key != NULL) {
+            hashmap_set(new, original->table[i].key, original->table[i].value);
+        }
+    }
+
+    return new;
+}
+
+int streq(void *a, void *b) {
+    return !strcmp(a, b);
+}
+
+long hashstr(void* strp) {
     ubyte* str = (ubyte*)strp;
     ulong hash = 0;
     int c;
@@ -669,7 +683,7 @@ long hashstr(const void* strp) {
     return *((long*)&hash);
 }
 
-long hashstr2(const void* strp) {
+long hashstr2(void* strp) {
     ubyte* str = (ubyte*)strp;
     ulong hash = 0, h;
     ubyte c;
