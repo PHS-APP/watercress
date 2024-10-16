@@ -106,10 +106,54 @@ Expression *compile_expr(Token *t, HashMap *var_names, DynList *var_types) {
             return expr;
         }
 
+    Node:
+        // Schartman has not informed me of the format of function calls, so I will guess
+        if (((Token *)dynlist_get(t->data.node, 0))->type != Ident || ((Token *)dynlist_get(t->data.node, 1))->type != Group) {
+            goto schartman;
+        }
+
+        // find the name
+        char *name = ((Token *)dynlist_get(t->data.node, 0))->data.identifier;
+
+        // get expressions and types for the child nodes
+        DynList *args = ((Token *)dynlist_get(t->data.node, 1))->data.group;
+        DynList *arg_exprs = dynlist_create(&pointereq);
+        DynList *arg_types = dynlist_create(&pointereq);
+        for (int sportman = 0; sportman < arg_exprs->len; sportman++) {
+            Expression *expr = compile_expr((Token *)dynlist_get(args, sportman), var_names, var_types);
+            dynlist_push(arg_exprs, expr);
+            dynlist_push(arg_types, (void *)expr->type);
+        }
+
+        // retrieve the number of this function
+        struct FunctionIdentifier *signature = malloc(sizeof(struct FunctionIdentifier));
+        signature->name = name;
+        signature->arg_types = arg_types;
+        int f = (int)hashmap_get(func_idents, signature);
+        free(signature);
+        dynlist_destroy(arg_types);
+
+        if (f == 0) {
+            // function was not found
+            goto schartman;
+        }
+
+        // create the expression
+        Expression *e = malloc(sizeof(Expression));
+        e->name = f;
+        e->type = (int)dynlist_get(func_types, f);
+        e->args = arg_exprs;
+        
+        return e;
     default:
       printf("whoops");
       break;
     }
+
+ schartman:
+    // something bad has happened
+    printf("oopsies");
+    return NULL;
 }
 
 Program *compile(Token *t) {
@@ -256,6 +300,7 @@ Program *compile(Token *t) {
                 if (!lhs_value) {
                     hashmap_set(var_names, lhs_name, (void *)next_var);
                     lhs_value = next_var;
+                    dynlist_push(var_types, (void *)rhs->type);
 
                     // add declare instruction
                     Instruction *i = malloc(sizeof(Instruction));
@@ -268,6 +313,11 @@ Program *compile(Token *t) {
                     next_var++;
                 }
 
+                if ((int)dynlist_get(var_types, lhs_value) != rhs->type) {
+                    // deal with type issues
+                    todo();
+                }
+
                 // create the new instruction
                 Instruction *instr = malloc(sizeof(Instruction));
                 instr->type = Store;
@@ -278,13 +328,27 @@ Program *compile(Token *t) {
                 // add the instruction
                 dynlist_push(instructions, (void *)instr);
             } else if (((Token *)dynlist_get(parts, 0))->type == Keyword) {
-                todo();
-                /* char *keyword = dynlist_get(parts, 0)->data.keyword; */
-                /* if (!strcmp(keyword, "if")) { */
-                
-                /* } else { */
-                /*     todo(); */
-                /* } */
+                ushort keyword = ((Token *)dynlist_get(parts, 0))->data.keyword;
+                if (keyword == KEYWORD_RETURN) {
+                    // get the expression to return
+                    Expression *e = compile_expr((Token *)dynlist_get(parts, 1), var_names, var_types);
+
+                    // check that the return type is the same
+                    if (e->type != (int)dynlist_get(func_types, scarfman)) {
+                        todo();
+                    }
+
+                    Instruction *instr = malloc(sizeof(Instruction));
+                    instr->type = Return;
+                    instr->i = 0;
+                    instr->j = e->type; // redundancy
+                    instr->expr = e;
+
+                    // add the instruction
+                    dynlist_push(instructions, (void *)instr);
+                } else {
+                    todo();
+                }
             }
         }
     }
