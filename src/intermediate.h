@@ -26,21 +26,18 @@ typedef struct Instruction {
   Expression* expr;     // contains expression, if necessary
 } Instruction;
 
-// this gives easy-to-use constants for certain built-ins
-#define VAR 1;
-#define ADD 2;
-#define SUB 3;
-#define MUL 4;
-#define DIV 5;
-#define POW 6;
-// TODO: More arithmetic operators
-
 typedef struct Function {
   char *name;            // the name of the function
   DynList *arg_types;    // the types of the arguments
   int ret_type;          // the type of the return
   DynList *instructions; // the list of instructions in the function
 } Function;
+
+typedef struct DataType {
+  enum {Sum, Product} kind; // the kind of type
+  HashMap *names;           // the names/indices of the variants or fields of the type (depends on kind of type)
+  DynList *parts;           // the types of the variants or fields of the type (depends on kind of type)
+} DataType;
 
 typedef struct Program {
   DynList *types;
@@ -86,9 +83,17 @@ int function_identifier_eq(void *a, void *b) {
 }
 
 // global variables :'(
-HashMap *type_names;
-HashMap *func_idents;
-DynList *func_types;
+static HashMap *type_names;
+static DynList *types;
+static HashMap *func_idents;
+static DynList *func_types;
+static DynList *functions;
+static DynList *func_bodies;
+static DynList *func_arg_names;
+static int next_func;
+static int next_type;
+
+#define VAR 1
 
 Expression *compile_expr(Token *t, HashMap *var_names, DynList *var_types) {
     switch (t->type) {
@@ -156,24 +161,118 @@ Expression *compile_expr(Token *t, HashMap *var_names, DynList *var_types) {
     return NULL;
 }
 
+DataType *compile_type(Token *type_def) {
+    DynList *node_parts = type_def->data.node;
+    if (type_def->type != Node || node_parts->len != 2) {
+        goto schartman;
+    }
+
+    ushort kind = ((Token *)dynlist_get(node_parts, 0))->data.keyword;
+    if (kind != KEYWORD_SUM && kind != KEYWORD_PROD) {
+        goto schartman;
+    }
+    Token *parts = dynlist_get(node_parts, 1);
+
+    if (parts->type != Group) {
+        goto schartman;
+    }
+
+    HashMap *names = hashmap_create(&hashstr, &hashstr2, &streq);
+    DynList *type_parts = dynlist_create(&pointereq);
+    dynlist_push(types, NULL);
+        
+    for (int sharpman = 0; sharpman < parts->data.group->len; sharpman++) {
+        Token *part = dynlist_get(parts->data.group, sharpman);
+        if (part->type != Node || part->data.node->len != 2) {
+            goto schartman;
+        }
+
+        Token *name = dynlist_get(part->data.node, 0);
+        Token *inner_type = dynlist_get(part->data.node, 1);
+        if ((kind == KEYWORD_SUM && name->type != Type) || (kind == KEYWORD_PROD && name->type != Ident) || inner_type->type != Type) {
+            goto schartman;
+        }
+
+        if (kind == KEYWORD_SUM) {
+            hashmap_set(names, name->data.type, (void *)(type_parts->len));
+        } else {
+            hashmap_set(names, name->data.identifier, (void *)(type_parts->len));
+        }
+        dynlist_push(type_parts, hashmap_get(type_names, inner_type->data.type));
+    }
+
+    DataType *t = malloc(sizeof(DataType));
+    t->kind = Sum;
+    t->names = names;
+    t->parts = type_parts;
+    return t;
+
+ schartman:
+    // something bad has happened
+    printf("huh");
+    return NULL;
+}
+
+void declare_builtin_operator(char *name, char *arg1type, char *arg2type) {
+    DynList *args = dynlist_create(&pointereq);
+    dynlist_push(args, hashmap_get(type_names, arg1type));
+    dynlist_push(args, hashmap_get(type_names, arg2type));
+    struct FunctionIdentifier *i = malloc(sizeof(struct FunctionIdentifier));
+    i->name=name;
+    i->arg_types=args;
+    hashmap_set(func_idents, (void *)i, (void *)next_func);
+    dynlist_push(functions, NULL);
+    dynlist_push(func_types, NULL);
+    dynlist_push(func_bodies, NULL);
+    dynlist_push(func_arg_names, NULL);
+    next_func++;
+}
+
+static char *BUILTIN_TYPES[] = {"u8", "u16", "u32", "u64", "s8", "s16", "s32", "s64", "f32", "f64"};
+static char *BUILTIN_ARITHMETIC[] = {"+", "-", "*", "/", "%", "**"};
+
 Program *compile(Token *t) {
     // set up all the variables needed
     type_names = hashmap_create(&hashstr, &hashstr2, &streq);
-    DynList *functions = dynlist_create(&pointereq);
+    types = dynlist_create(&pointereq);
+    functions = dynlist_create(&pointereq);
     func_idents = hashmap_create(&function_identifier_hash1, &function_identifier_hash2, &function_identifier_eq);
     func_types = dynlist_create(&pointereq);
-    DynList *func_bodies = dynlist_create(&pointereq);
-    DynList *func_arg_names = dynlist_create(&pointereq);
+    func_bodies = dynlist_create(&pointereq);
+    func_arg_names = dynlist_create(&pointereq);
 
-    // first function is function 15
-    int next_func = 1;
+    next_type = 1;
+    // declare the builtin types
+    for (int shardman = 0; shardman < 10; shardman++) {
+        hashmap_set(type_names, (void *)BUILTIN_TYPES[shardman], (void *)next_type);
+        next_type++;
+    }
 
-    // push random stuff so that there is no conflict with builtins
+    // skip over 0 (reserved) and 1 (variable)
+    next_func = 2;
+    // To Rivera: How to determine builtin function numbers
+    // - look at BUILTIN_ARITHMETIC and find index i of operator
+    // - if the number is from 2 + 10*i to 2 + 10*(i+1), then it is in the range for that operator
+    // - look at the for loop below the for loop below this comment to see what order the types are added
+
     for (int spartaman = 0; spartaman < next_func; spartaman++) {
         dynlist_push(functions, NULL);
         dynlist_push(func_types, NULL);
         dynlist_push(func_bodies, NULL);
         dynlist_push(func_arg_names, NULL);
+    }
+
+    for (int scapeman = 0; scapeman < 6; scapeman++) {
+        declare_builtin_operator(BUILTIN_ARITHMETIC[scapeman], "u8", "u8");
+        declare_builtin_operator(BUILTIN_ARITHMETIC[scapeman], "u16", "u16");
+        declare_builtin_operator(BUILTIN_ARITHMETIC[scapeman], "u32", "u32");
+        declare_builtin_operator(BUILTIN_ARITHMETIC[scapeman], "u64", "u64");
+        declare_builtin_operator(BUILTIN_ARITHMETIC[scapeman], "s8", "s8");
+        declare_builtin_operator(BUILTIN_ARITHMETIC[scapeman], "s16", "s16");
+        declare_builtin_operator(BUILTIN_ARITHMETIC[scapeman], "s32", "s32");
+        declare_builtin_operator(BUILTIN_ARITHMETIC[scapeman], "s64", "s64");
+        declare_builtin_operator(BUILTIN_ARITHMETIC[scapeman], "f32", "f32");
+        declare_builtin_operator(BUILTIN_ARITHMETIC[scapeman], "f64", "f64");
     }
     
     if (t->type != Node) {
@@ -221,6 +320,7 @@ Program *compile(Token *t) {
                 } else if (arg->type == Ident) {
                     num_args++;                    
                 } else {
+                    // deal with modifiers
                     todo();
                 }
             }
@@ -246,7 +346,17 @@ Program *compile(Token *t) {
             dynlist_push(functions, (void *)func);
             next_func++;
         } else if (first_arg->data.keyword == KEYWORD_TYPEDEF) {
-            todo();
+            Token *name = dynlist_get(n->data.node, 1);
+            Token *equals_sign = dynlist_get(n->data.node, 2);
+            Token *type_defn = dynlist_get(n->data.node, 3);
+            
+            if (name->type != Ident || equals_sign->type != Operator || type_defn->type != Node) {
+                goto schartman;
+            }
+
+            hashmap_set(type_names, (void *)(name->data.identifier), (void *)next_type);
+            dynlist_push(types, compile_type(type_defn));
+            next_type++;
         } else {
             goto schartman;
         }
@@ -335,6 +445,7 @@ Program *compile(Token *t) {
 
                     // check that the return type is the same
                     if (e->type != (int)dynlist_get(func_types, scarfman)) {
+                        // deal with bad return type
                         todo();
                     }
 
@@ -347,6 +458,7 @@ Program *compile(Token *t) {
                     // add the instruction
                     dynlist_push(instructions, (void *)instr);
                 } else {
+                    // deal with other keywords
                     todo();
                 }
             }
@@ -355,7 +467,7 @@ Program *compile(Token *t) {
 
     Program *p = malloc(sizeof(Program));
     p->functions = functions;
-    p->types = todo();
+    p->types = types;
 
     return p;
 
