@@ -60,7 +60,7 @@ typedef union TokenData {
     DynList *group, *statement, *node;
     void* meta;
     AsmToken* assembly;
-    NmspData* namespace;
+    NmspData namespace;
 } TokenData;
 
 typedef struct Token {
@@ -82,7 +82,7 @@ Token* token_create(TokenType type, long line, long column, char* file, TokenDat
 void token_print(Token* tok) {
     printf("Token {\n    type: %s,\n    src=(%li, %li, %s),\n    ", TYPENAMEMAP[tok->type], tok->line, tok->column, tok->file);
     switch (tok->type) {
-        case Nmsp:printf("name: %s, ", tok->data.namespace->name);
+        case Nmsp:printf("name: %s, ", tok->data.namespace.name==NULL?"ANONYMOUS":tok->data.namespace.name);
         case Group:case Stmt:
         case Node:printf("children: [...]\n");break;
         case Ident:printf("value: %s\n", tok->data.identifier);break;

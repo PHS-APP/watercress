@@ -1,0 +1,24 @@
+//LINECOMMENT
+/*BLOCKCOMMENT_1line*/
+/*
+BLOCKCOMMENT_nline
+*/
+0.
+0.0
+10.10
+13
+0b100
+0o100
+0x100
+100
++=
+++
++-
+_f
+f
+()
+j j
+"string"
+"\\escaped\""
+'c'
+'\''
