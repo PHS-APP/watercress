@@ -2,7 +2,7 @@
 #define _POSIX_VERSION 200112L
 #include <stdlib.h>
 #include "./utils.h"
-#include "./parsing/parsing.h"
+#include "./parsing.h"
 static char* HelpText[] = {
     "Parser Debug:",
     "  watercress --test-parsing=(ptokens|stokens) ?--dbg=(escres) [file]",

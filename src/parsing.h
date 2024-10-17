@@ -5,13 +5,10 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include "../tokens.h"
-#include "../utils.h"
+#include "./tokens.h"
+#include "./utils.h"
 
 #define LINKED_OBJECTS linkedlist_create(pointereq)
-#ifndef getc_unlocked
-#define getc_unlocked getc
-#endif
 
 char DEBUG_ESCAPES = 0;
 
@@ -457,7 +454,7 @@ Token* parse_file(char* fpath, char mode) {
     char last = 0;
     char c = 0;
     loop_continue:
-    while ((readch = getc_unlocked(fp)) != EOF) {
+    while ((readch = getc(fp)) != EOF) {
         // line and column updates
         col ++;
         if (nlproc) {
