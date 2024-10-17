@@ -15,8 +15,6 @@ char DEBUG_ESCAPES = 0;
 static char inited = 0;
 // list of processed files
 static LinkedList* processed = NULL;
-// the AST
-static LinkedList* program = NULL;
 
 static int inoeq(void* p1, void* p2) {
     return *((ino_t*)p1) == *((ino_t*)p2);
@@ -26,7 +24,6 @@ void parser_init(void) {
     if (inited) return;
     inited = 1;
     processed = linkedlist_create((ItemEq)inoeq);
-    program = LINKED_OBJECTS;
 }
 
 static int get_ino(char* fpath, ino_t* ino) {
@@ -181,7 +178,6 @@ static long parse_intstr(char* str) {
     return acc;
 }
 static int resolve_charstr(char* str) {
-    // todo();
     if (str[0] != '\\') {
         return (int)str[0];
     }
@@ -221,7 +217,6 @@ static int resolve_charstr(char* str) {
     return r;
 }
 static char* resolve_strstr(char* str) {
-    // todo();
     StrBuf* buf = strbuf_create();
     StrBuf* b2 = strbuf_create();
     int esc = 0;
@@ -268,32 +263,6 @@ static char* resolve_strstr(char* str) {
                             strbuf_push(buf, (char)v);
                         }
                     }
-                    // long v = parse_hex(b2->ptr);
-                    // strbuf_discard(b2);
-                    // if (esc == 2) {
-                    //     strbuf_push(buf, (char)v);
-                    // } else {
-                    //     long c1 = v >> 16, c2 = v & 0xffff;
-                    //     if (c1 == 0) {
-                    //         if ((c2 & ~0x7f) == 0) {
-                    //             strbuf_push(buf, (char)(c2&0xff));
-                    //         } else {
-                    //             if ((c2 & ~0x7ff) == 0) {
-                    //                 strbuf_push(buf, (char)(0xc0|(c2>>6)));
-                    //                 strbuf_push(buf, (char)(0x80|(c2&0x3f)));
-                    //             } else {
-                    //                 strbuf_push(buf, (char)(0xe0|(c2>>12)));
-                    //                 strbuf_push(buf, (char)(0x80|(c2>>6)));
-                    //                 strbuf_push(buf, (char)(0x80|(c2&0x3f)));
-                    //             }
-                    //         }
-                    //     } else {
-                    //         strbuf_push(buf, (char)(0xf0|(c1>>2)));
-                    //         strbuf_push(buf, (char)(0x80|((c1&0x3)<<4)|(c2>>12)));
-                    //         strbuf_push(buf, (char)(0x80|((c2&0xfff)>>6)));
-                    //         strbuf_push(buf, (char)(0x80|(c2&0x3f)));
-                    //     }
-                    // }
                     esc = 0;
                 }
             }
@@ -330,7 +299,7 @@ typedef struct ParserToken {
     ParserData data;
 } ParserToken;
 
-static void printutf8(int bytes) {
+static void printutf8(int bytes) { // prints utf8 of up to four bytes
     if (DEBUG_ESCAPES) {
         printf("%x", bytes);
         return;
@@ -366,6 +335,7 @@ void parsertoken_print(ParserToken* tok) {
     printf("}\n");
 }
 void parsertoken_print_condensed(ParserToken* tok) {
+    printf("ptpcl: %p\n", (void*)tok);
     printf("(%s, %li:%li, ", CONTENTTYPEMAP[tok->type], tok->line, tok->column);
     switch (tok->type) {
         case CONTENT_WORD:case CONTENT_SYM:
@@ -405,23 +375,196 @@ static int check_symbol_continuity(StrBuf* buf, char new) {
             }
         }
     }
-    // if (new == '"' || new == '\'' || new == '\n' || new == '.' || new == ',' || new == ' ') return 0;
     return 0;
 }
 
-static Token* transform_parser_tree(char* treename, LinkedList* partree) {
-    Token* semroot;
-    {TokenData d = {.namespace={.name=strmove(treename),.childnode=NULL}};semroot=token_create(Nmsp, -1, -1, treename, d);}
+#define PHASE_INCL 0
+#define PHASE_GLBL 1
+#define PHASE_TYPE 2
+#define PHASE_FUNC 3
+
+static void transform_error(char* msg, ParserToken* cause) {
+    printf("Semantic Transformation Error: %s (%li, %li, %s)\n", msg, cause->line, cause->column, cause->file);
+    exit(1);
+}
+
+static int rephase(int op, ParserToken* tok) { // determines the next phase
+    if (op < PHASE_GLBL) {
+        if (!strcmp(tok->data.word, "global") || !strcmp(tok->data.word, "const")) {
+            return PHASE_GLBL;
+        }
+    }
+    if (op < PHASE_TYPE) {
+        if (!strcmp(tok->data.word, "typedef")) {
+            return PHASE_TYPE;
+        }
+    }
+    if (op < PHASE_FUNC) {
+        if (!strcmp(tok->data.word, "func") || !strcmp(tok->data.word, "impure") || !strcmp(tok->data.word, "foreign")) {
+            return PHASE_FUNC;
+        }
+    }
+    transform_error("invalid phase transition", tok);
+    return -1;
+}
+
+static Token* _smart_create_token(TokenType type, long line, long column, char* file, long data) {
+    TokenData d = {0};
+    switch(type) {
+        case Node:d.node=(DynList*)data;break;
+        case Nmsp:{NmspData nd={.name=(char*)data,.childnode=dynlist_create(pointereq,no_release)};d.namespace=nd;}break;
+        case Ident:d.identifier=(char*)data;break;
+        case Bool:d.boolean=(char)data;break;
+        case Int:d.integer=data;break;
+        case Float:d.floating=*((double*)&data);break;
+        case Keyword:d.keyword=(ushort)data;break;
+        case Operator:d.operator=(char)data;break;
+        case Char:d.character=(char)data;break;
+        case String:d.string=(char*)data;break;
+        case Group:d.group=(DynList*)data;break;
+        case Type:d.type=(char*)data;break;
+        case Mod:d.modifier=(ushort)data;break;
+        default:break;
+    }
+    return token_create(type, line, column, file, d);
+}
+#define smart_create_token(type, line, column, file, data) _smart_create_token(type, line, column, file, (long)data)
+#define smart_create_tokenl(type, loc, data) _smart_create_token(type, loc, (long)data)
+#define smart_create_tokent(type, tok, data) _smart_create_token(type, ((ParserToken*)tok)->line, ((ParserToken*)tok)->column, ((ParserToken*)tok)->file, (long)data)
+
+static Token* transform_parser_tree(char* treename, DynList* partree, LinkedList* tofollow) {
+    Token* semroot = smart_create_token(Nmsp, -1, -1, treename, treename);
     LinkedList* yardstack = LINKED_OBJECTS;
-    todo();
+    LinkedList* inclusions = LINKED_OBJECTS;
+    DynList* buildnode = dynlist_create(pointereq, no_release);
+    int sourcephase = PHASE_INCL;
+    int subsec = 0;
+    DynList* tokbufx = dynlist_create(pointereq, no_release);
+    DynList* tokbufy = dynlist_create(pointereq, no_release);
+    ParserToken *held;
+    // for (int i = 0; i < partree->len; i ++) printf("%d:%p\n", i, partree->ptr[i]);
+    // printf("\n");
+    for (int i = 0; i < partree->len; i ++) {
+        ParserToken* tok = (ParserToken*)partree->ptr[i];
+        // parsertoken_print_condensed(tok);printf("\n");
+        // for (int j = 0; j < partree->len; j ++) {
+        //     printf("%p ", partree->ptr[j]);
+        // }
+        // printf("\n");
+        #define tokloc tok->line, tok->column, tok->file
+        #define noloc -1, -1, treename
+        inner_continue:
+        if (sourcephase == PHASE_INCL) {
+            if (subsec == 0) {
+                if (tok->type == CONTENT_LINE) continue;
+                if (tok->type != CONTENT_WORD) {
+                    transform_error("expected word", tok);
+                }
+                if (strcmp(tok->data.word, "use")) {
+                    // printf("\nNOT USE, REPHASE\n");
+                    sourcephase = rephase(sourcephase, tok);
+                    // printf("PHASE=%d\n\n", sourcephase);
+                    subsec = 0;
+                    goto inner_continue;
+                }
+                subsec = 1;
+                dynlist_push(buildnode, smart_create_tokenl(Keyword, tokloc, KEYWORD_USE));
+                dynlist_clear(tokbufx);
+                dynlist_clear(tokbufy);
+            } else if (subsec == 1) {
+                if (tok->type == CONTENT_WORD && !strcmp(tok->data.word, "of")) {
+                    // printf("\n");
+                    subsec = 2;
+                    held = tok;
+                    goto loop_continue;
+                }
+                // printf("BXP; %p\n", (void*) tok);
+                dynlist_push(tokbufx, tok);
+            } else {
+                if (tok->type == CONTENT_LINE) {
+                    // printf("BX@ %p:%p\nBY@ %p:%p\n", (void*)tokbufx, (void*)tokbufx->ptr, (void*)tokbufy, (void*)tokbufy->ptr);
+                    subsec = 0;
+                    DynList* btmp = dynlist_create(pointereq, no_release);
+                    DynList* ntmp = dynlist_create(pointereq, no_release);
+                    // printf("CAP: %d\n", tokbufx->cap);
+                    // for (int i = 0; i < tokbufx->cap; i ++) printf("%d:%p\n", i, tokbufx->ptr[i]);
+                    // printf("\n");
+                    for (int i = 0; i < tokbufx->len; i ++) {
+                        ParserToken* pt = (ParserToken*)tokbufx->ptr[i];
+                        // printf("BP1 [%d]\n", i);
+                        // parsertoken_print_condensed(pt);printf("\n");
+                        // printf("AP1\n");
+                        if (pt->type == CONTENT_SYM && !strcmp(pt->data.symbol, ",")) {
+                            dynlist_push(btmp, smart_create_tokenl(Node, noloc, dynlist_reown(ntmp)));
+                        } else if (pt->type != CONTENT_WORD && !(pt->type == CONTENT_SYM && (!strcmp(pt->data.symbol, ".") || !strcmp(pt->data.symbol, "*")))) {
+                            transform_error("invalid use token", pt);
+                        } else {
+                            Token* ct;
+                            if (pt->type == CONTENT_WORD) {
+                                ct = smart_create_tokent(Ident, pt, strmove(pt->data.word));
+                            } else {
+                                ct = smart_create_tokent(Operator, pt, pt->data.symbol[0]);
+                            }
+                            dynlist_push(ntmp, ct);
+                        }
+                    }
+                    dynlist_push(btmp, smart_create_tokenl(Node, noloc, dynlist_reown(ntmp)));
+                    dynlist_push(buildnode, smart_create_tokenl(Node, noloc, btmp));
+                    dynlist_push(buildnode, smart_create_tokent(Keyword, held, KEYWORD_OF));
+                    // printf("CAP: %d\n", tokbufy->cap);
+                    // printf("LEN: %d\n", tokbufy->len);
+                    // for (int i = 0; i < tokbufy->cap; i ++) printf("%d:%p\n", i, tokbufy->ptr[i]);
+                    // printf("\n");
+                    for (int i = 0; i < tokbufy->len; i ++) {
+                        ParserToken* pt = (ParserToken*)tokbufy->ptr[i];
+                        // printf("BP2 [%d]\n", i);
+                        // parsertoken_print_condensed(pt);printf("\n");
+                        // printf("AP2\n");
+                        if (pt->type != CONTENT_WORD && !(pt->type == CONTENT_SYM && !strcmp(pt->data.symbol, "."))) {
+                            transform_error("invalid use token", pt);
+                        } else {
+                            Token* ct;
+                            if (pt->type == CONTENT_WORD) {
+                                ct = smart_create_tokent(Ident, pt, strmove(pt->data.word));
+                            } else {
+                                ct = smart_create_tokent(Operator, pt, '.');
+                            }
+                            dynlist_push(ntmp, ct);
+                        }
+                    }
+                    dynlist_push(buildnode, smart_create_tokenl(Node, noloc, ntmp));
+                    dynlist_push(semroot->data.namespace.childnode, smart_create_tokenl(Node, noloc, dynlist_reown(buildnode)));
+                    dynlist_clear(tokbufx);
+                    dynlist_clear(tokbufy);
+                    goto loop_continue;
+                }
+                // printf("BYP; %p\n", (void*)tok);
+                dynlist_push(tokbufy, tok);
+            }
+        } else {
+            todo();
+        }
+        #undef tokloc
+        #undef noloc
+        loop_continue:
+        continue;
+    }
     return semroot;
 }
+
+#undef PHASE_INCL
+#undef PHASE_GLBL
+#undef PHASE_TYPE
+#undef PHASE_FUNC
+#undef smart_create_token
+#undef smart_create_tokenl
+#undef smart_create_tokent
 
 /*
 mode can be 0 or 1
 if mode is 1, inclusions will not be processed and a LinkedList of ParserTokens is returned
 */
-Token* parse_file(char* fpath, char mode) {
+Token* parse_file(char* fpath, char mode, LinkedList* tofollow) {
     parser_init();
     if (check_file(fpath)) { // don't process the same file multiple times
         return NULL;
@@ -444,7 +587,7 @@ Token* parse_file(char* fpath, char mode) {
     char intbase = BASE_10;
     char nlproc = 0;
     // line and column info
-    long line = 1, col = 1;
+    long line = 1, col = 0;
     // the line and column when the token was started
     long tline = 1, tcol = 1;
     long nlcol = 1;
@@ -496,17 +639,6 @@ Token* parse_file(char* fpath, char mode) {
                 continue;
             }
         }
-        // if (c == '\n' && CONTENT_NOTSTR(content)) {
-        //     if (lineend) {
-        //         ParserData d = {.line='\n'};
-        //         linkedlist_push(tokens, create_parsertoken(CONTENT_LINE, line, nlcol, fpath, d));
-        //         lineend = 0;
-        //         goto loop_continue;
-        //     }
-        //     lineend = 1;
-        // } else {
-        //     lineend = 0;
-        // }
         switch (content) {
             case CONTENT_NONE: // the buffer contains either meaningless nonsense or nothing at all
                 // update token source locations
@@ -650,7 +782,14 @@ Token* parse_file(char* fpath, char mode) {
     linkedlist_push(tokens, create_parsertoken(CONTENT_LINE, line, col-1, fpath, d));}
     // now transform the parser tokens into semantic tokens
     if (!mode) {
-        fintree = transform_parser_tree(fpath, tokens);
+        DynList* dyntoks = dynlist_create(pointereq, no_release);
+        LinkedListNode* c = tokens->head;
+        while (c) {
+            dynlist_push(dyntoks, c->data);
+            c = c->next;
+        }
+        fintree = transform_parser_tree(fpath, dyntoks, tofollow);
+        dynlist_destroy(dyntoks);
     }
     release:
     strbuf_destroy(buf);
@@ -676,9 +815,15 @@ Token* parse_file(char* fpath, char mode) {
 #undef CONTENT_CHAR
 #undef CONTENT_LINE
 #undef CONTENT_NOTSTR
+#undef BASE_2
+#undef BASE_8
+#undef BASE_10
+#undef BASE_16
 
 void parser_test_ptokens(char* fpath) {
-    LinkedList* list = (LinkedList*)parse_file(fpath, 1);
+    LinkedList* tofollow = LINKED_OBJECTS;
+    LinkedList* list = (LinkedList*)parse_file(fpath, 1, tofollow);
+    linkedlist_destroy(tofollow);
     printf("PARSED\n");
     LinkedListNode* curr = list->head;
     int cnt = 0;
@@ -693,6 +838,56 @@ void parser_test_ptokens(char* fpath) {
     #undef width
     if (cnt) printf("\n");
     linkedlist_destroy(list);
+}
+void print_semantic_token(Token* tok, char* indent) {
+    char* nide = strjoin(indent, " ");
+    #define printh(n) printf("%s%s{%li:%li}", indent, n, tok->line, tok->column)
+    printh(TYPENAMEMAP[tok->type]);
+    switch (tok->type) {
+        case Node:
+            // printh("Node");
+            printf("[\n");
+            for (int i = 0; i < tok->data.node->len; i ++) {
+                print_semantic_token((Token*)tok->data.node->ptr[i], nide);
+            }
+            printf("%s]\n", indent);
+            break;
+        case Nmsp:
+            // printh("Nmsp");
+            printf("('%s')[\n", tok->data.namespace.name);
+            for (int i = 0; i < tok->data.namespace.childnode->len; i ++) {
+                print_semantic_token((Token*)tok->data.namespace.childnode->ptr[i], nide);
+            }
+            printf("%s]\n", indent);
+            break;
+        case Ident:printf("('%s')\n", tok->data.identifier);break;
+        case Bool:printf("(%d)\n", tok->data.boolean);break;
+        case Int:printf("(%li)\n", tok->data.integer);break;
+        case Float:printf("(%f)\n", tok->data.floating);break;
+        case Keyword:printf("(%s)\n", KEYWORDMAP[tok->data.keyword]);break;
+        case Operator:printf("(%c)\n", tok->data.operator);break;
+        case Char:printf("(%c)\n", tok->data.character);break;
+        case String:printf("(%s)\n", tok->data.string);break;
+        case Group:
+            printf("[\n");
+            for (int i = 0; i < tok->data.node->len; i ++) {
+                print_semantic_token((Token*)tok->data.node->ptr[i], nide);
+            }
+            printf("%s]\n", indent);
+            break;
+        case Sep:printf("\n");break;
+        case Type:printf("(%s)\n", tok->data.type);break;
+        case Mod:printf("(%d)\n", tok->data.modifier);break;
+        default:break;
+    }
+    free(nide);
+}
+void parser_test_stokens(char* fpath) {
+    LinkedList* tofollow = LINKED_OBJECTS;
+    Token* output = parse_file(fpath, 0, tofollow);
+    linkedlist_destroy(tofollow);
+    printf("PARSED\n");
+    print_semantic_token(output, "");
 }
 
 #endif
