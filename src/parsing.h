@@ -335,7 +335,6 @@ void parsertoken_print(ParserToken* tok) {
     printf("}\n");
 }
 void parsertoken_print_condensed(ParserToken* tok) {
-    printf("ptpcl: %p\n", (void*)tok);
     printf("(%s, %li:%li, ", CONTENTTYPEMAP[tok->type], tok->line, tok->column);
     switch (tok->type) {
         case CONTENT_WORD:case CONTENT_SYM:
