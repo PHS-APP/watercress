@@ -580,7 +580,7 @@ char* strbuf_consume(StrBuf* buf) {
     return cbuf;
 }
 
-typedef long(*HashFunc)(void*);
+typedef ulong(*HashFunc)(void*);
 
 typedef struct HashMapEntry {
   void *key;
@@ -626,11 +626,16 @@ void hashmap_destroy(HashMap *map) {
 void hashmap_expand(HashMap *map);
 
 void hashmap_set(HashMap *map, void *key, void *value) {
-    int a = (map->h1)(key);
-    int b = (map->h2)(key);
+    if (key == NULL) {
+        puts("oops");
+        return;
+    }
+
+    ulong a = (map->h1)(key);
+    ulong b = (map->h2)(key);
 
     for (int i = 0; i < map->entries+1; i++) {
-        int index = (a+b*i) % (map->size);
+        ulong index = (a+b*i) % (map->size);
         if (map->table[index].key == NULL || (map->eq)(map->table[index].key, key)) {
             map->table[index].key = key;
             map->table[index].value = value;
@@ -648,15 +653,15 @@ void hashmap_set(HashMap *map, void *key, void *value) {
 }
 
 void *hashmap_get(HashMap *map, void *key) {
-    int a = (map->h1)(key);
-    int b = (map->h2)(key);
+    ulong a = (map->h1)(key);
+    ulong b = (map->h2)(key);
     for (int i = 0; i < map->entries; i++) {
-        int index = (a+b*i) % (map->size);
-        if ((map->eq)(map->table[index].key, key)) {
-            return map->table[index].value;
-        } else if (map->table[index].key == NULL) {
+        ulong index = (a+b*i) % (map->size);
+        if (map->table[index].key == NULL) {
             return NULL;
-        }
+        } else if ((map->eq)(map->table[index].key, key)) {
+            return map->table[index].value;
+        } 
     }
 
     return NULL;
@@ -674,7 +679,7 @@ void hashmap_expand(HashMap *map) {
 
     
     for (int i = 0; i < old_size; i++) {
-        if (old_table[i].key) {
+        if (old_table[i].key != NULL) {
             hashmap_set(map, old_table[i].key, old_table[i].value);
         }
     }
@@ -698,17 +703,17 @@ int streq(void *a, void *b) {
     return !strcmp(a, b);
 }
 
-long hashstr(void* strp) {
+ulong hashstr(void* strp) {
     ubyte* str = (ubyte*)strp;
     ulong hash = 0;
     int c;
     while ((c = *str++) != 0) {
         hash = c + (hash << 6) + (hash << 16) - hash;
     }
-    return *((long*)&hash);
+    return hash;
 }
 
-long hashstr2(void* strp) {
+ulong hashstr2(void* strp) {
     ubyte* str = (ubyte*)strp;
     ulong hash = 0, h;
     ubyte c;
@@ -719,7 +724,7 @@ long hashstr2(void* strp) {
         }
         hash &= ~h;
     }
-    return *((long*)&h);
+    return h;
 }
 
 long hashsized(void* vdata, size_t size) {
@@ -741,8 +746,8 @@ int inteq(void *a, void *b) {
     return *((int*)a) == *((int*)b);
 }
 
-long ident(void *a) {
-    return (long)a;
+ulong ident(void *a) {
+    return (ulong)a;
 }
 
 #endif

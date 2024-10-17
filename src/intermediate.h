@@ -50,20 +50,20 @@ struct FunctionIdentifier {
   DynList *arg_types;
 };
 
-long function_identifier_hash1(void *f) {
+ulong function_identifier_hash1(void *f) {
     struct FunctionIdentifier *i = (struct FunctionIdentifier *)f;
-    long hash = hashstr((void *)(i->name));
+    ulong hash = hashstr((void *)(i->name));
     for (int smartman = 0; smartman < i->arg_types->len; smartman++) {
-        hash += (long)(dynlist_get(i->arg_types, smartman))*smartman;
+        hash += *((int *)dynlist_get(i->arg_types, smartman))*smartman;
     }
     return hash;
 }
 
-long function_identifier_hash2(void *f) {
+ulong function_identifier_hash2(void *f) {
     struct FunctionIdentifier *i = (struct FunctionIdentifier *)f;
-    long hash = hashstr2((void *)(i->name));
+    ulong hash = hashstr2((void *)(i->name));
     for (int smartman = 0; smartman < i->arg_types->len; smartman++) {
-        hash += (long)(dynlist_get(i->arg_types, smartman))*smartman;
+        hash += *((int *)dynlist_get(i->arg_types, smartman))*smartman;
     }
     return hash;
 }
@@ -75,7 +75,7 @@ int function_identifier_eq(void *a, void *b) {
         return 0;
     }
     for (int smartman = 0; smartman < ai->arg_types->len; smartman++) {
-        if (dynlist_get(ai->arg_types, smartman) != dynlist_get(bi->arg_types, smartman)) {
+        if (*(int *)(dynlist_get(ai->arg_types, smartman)) != *(int *)(dynlist_get(bi->arg_types, smartman))) {
             return 0;
         }
     }
@@ -92,6 +92,30 @@ static DynList *func_bodies;
 static DynList *func_arg_names;
 static int next_func;
 static int next_type;
+static int *rivera;
+static int rivera_len = 8;
+
+// init rivera
+void ri(void) {
+    rivera = malloc(sizeof(int)*8);
+    for (int murphy = 0; murphy < rivera_len; murphy++) {
+        rivera[murphy] = murphy;
+    }
+}
+
+// get the Rivera pointer
+void *rp(int i) {
+    while (i >= rivera_len) {
+        free(rivera);
+        rivera_len *= 2;
+
+        rivera = malloc(sizeof(int)*rivera_len);
+        for (int murphy = 0; murphy < rivera_len; murphy++) {
+            rivera[murphy] = murphy;
+        }
+    }
+    return (void *)&rivera[i];
+}
 
 #define VAR 1
 
@@ -100,12 +124,12 @@ Expression *compile_expr(Token *t, HashMap *var_names, DynList *var_types) {
     Ident:
         {
             // handle the case where the expression is just a variable
-            int var = (int)hashmap_get(var_names, t->data.identifier);
+            int var = *((int *)hashmap_get(var_names, t->data.identifier));
             Expression *expr = malloc(sizeof(Expression));
             expr->name = VAR;
-            expr->type = (int)dynlist_get(var_types, var);
+            expr->type = *((int *)dynlist_get(var_types, var));
             DynList *args = dynlist_create(&pointereq);
-            dynlist_push(args, (void *)var);
+            dynlist_push(args, rp(var));
             expr->args = args;
 
             return expr;
@@ -127,14 +151,14 @@ Expression *compile_expr(Token *t, HashMap *var_names, DynList *var_types) {
         for (int sportman = 0; sportman < arg_exprs->len; sportman++) {
             Expression *expr = compile_expr((Token *)dynlist_get(args, sportman), var_names, var_types);
             dynlist_push(arg_exprs, expr);
-            dynlist_push(arg_types, (void *)expr->type);
+            dynlist_push(arg_types, rp(expr->type));
         }
 
         // retrieve the number of this function
         struct FunctionIdentifier *signature = malloc(sizeof(struct FunctionIdentifier));
         signature->name = name;
         signature->arg_types = arg_types;
-        int f = (int)hashmap_get(func_idents, signature);
+        int f = *((int *)hashmap_get(func_idents, signature));
         free(signature);
         dynlist_destroy(arg_types);
 
@@ -146,7 +170,7 @@ Expression *compile_expr(Token *t, HashMap *var_names, DynList *var_types) {
         // create the expression
         Expression *e = malloc(sizeof(Expression));
         e->name = f;
-        e->type = (int)dynlist_get(func_types, f);
+        e->type = *((int *)dynlist_get(func_types, f));
         e->args = arg_exprs;
         
         return e;
@@ -194,9 +218,9 @@ DataType *compile_type(Token *type_def) {
         }
 
         if (kind == KEYWORD_SUM) {
-            hashmap_set(names, name->data.type, (void *)(type_parts->len));
+            hashmap_set(names, name->data.type, rp(type_parts->len));
         } else {
-            hashmap_set(names, name->data.identifier, (void *)(type_parts->len));
+            hashmap_set(names, name->data.identifier, rp(type_parts->len));
         }
         dynlist_push(type_parts, hashmap_get(type_names, inner_type->data.type));
     }
@@ -214,13 +238,14 @@ DataType *compile_type(Token *type_def) {
 }
 
 void declare_builtin_operator(char *name, char *arg1type, char *arg2type) {
+    ri();
     DynList *args = dynlist_create(&pointereq);
     dynlist_push(args, hashmap_get(type_names, arg1type));
     dynlist_push(args, hashmap_get(type_names, arg2type));
     struct FunctionIdentifier *i = malloc(sizeof(struct FunctionIdentifier));
     i->name=name;
     i->arg_types=args;
-    hashmap_set(func_idents, (void *)i, (void *)next_func);
+    hashmap_set(func_idents, (void *)i, rp(next_func));
     dynlist_push(functions, NULL);
     dynlist_push(func_types, NULL);
     dynlist_push(func_bodies, NULL);
@@ -244,7 +269,7 @@ Program *compile(Token *t) {
     next_type = 1;
     // declare the builtin types
     for (int shardman = 0; shardman < 10; shardman++) {
-        hashmap_set(type_names, (void *)BUILTIN_TYPES[shardman], (void *)next_type);
+        hashmap_set(type_names, (void *)BUILTIN_TYPES[shardman], rp(next_type));
         next_type++;
     }
 
@@ -331,15 +356,15 @@ Program *compile(Token *t) {
             }
 
             // set the function's return type
-            func->ret_type = (int)hashmap_get(type_names, ret->data.type);
+            func->ret_type = *((int *)hashmap_get(type_names, ret->data.type));
 
             // store the signature, return type, and body for later use
             struct FunctionIdentifier *ident = malloc(sizeof(struct FunctionIdentifier));
             ident->name = func->name;
             ident->arg_types = func->arg_types;
             
-            hashmap_set(func_idents, (void *)ident, (void *)next_func);
-            dynlist_push(func_types, (void *)func->ret_type);
+            hashmap_set(func_idents, (void *)ident, rp(next_func));
+            dynlist_push(func_types, rp(func->ret_type));
             dynlist_push(func_bodies, (void *)body->data.node);
 
             // store the function itself
@@ -354,7 +379,7 @@ Program *compile(Token *t) {
                 goto schartman;
             }
 
-            hashmap_set(type_names, (void *)(name->data.identifier), (void *)next_type);
+            hashmap_set(type_names, (void *)name->data.identifier, rp(next_type));
             dynlist_push(types, compile_type(type_defn));
             next_type++;
         } else {
@@ -405,12 +430,12 @@ Program *compile(Token *t) {
 
                 // get the variable number on the lhs
                 char *lhs_name = ((Token *)dynlist_get(parts, 0))->data.identifier;
-                int lhs_value = (int)hashmap_get(var_names, (void *)lhs_name);
+                int lhs_value = *((int *)hashmap_get(var_names, (void *)lhs_name));
                 // add a new variable number if it isn't there already
                 if (!lhs_value) {
-                    hashmap_set(var_names, lhs_name, (void *)next_var);
+                    hashmap_set(var_names, lhs_name, rp(next_var));
                     lhs_value = next_var;
-                    dynlist_push(var_types, (void *)rhs->type);
+                    dynlist_push(var_types, rp(rhs->type));
 
                     // add declare instruction
                     Instruction *i = malloc(sizeof(Instruction));
@@ -423,7 +448,7 @@ Program *compile(Token *t) {
                     next_var++;
                 }
 
-                if ((int)dynlist_get(var_types, lhs_value) != rhs->type) {
+                if (*((int *)dynlist_get(var_types, lhs_value)) != rhs->type) {
                     // deal with type issues
                     todo();
                 }
@@ -444,7 +469,7 @@ Program *compile(Token *t) {
                     Expression *e = compile_expr((Token *)dynlist_get(parts, 1), var_names, var_types);
 
                     // check that the return type is the same
-                    if (e->type != (int)dynlist_get(func_types, scarfman)) {
+                    if (e->type != *((int *)dynlist_get(func_types, scarfman))) {
                         // deal with bad return type
                         todo();
                     }
