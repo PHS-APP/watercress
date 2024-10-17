@@ -128,7 +128,7 @@ Expression *compile_expr(Token *t, HashMap *var_names, DynList *var_types) {
             Expression *expr = malloc(sizeof(Expression));
             expr->name = VAR;
             expr->type = *((int *)dynlist_get(var_types, var));
-            DynList *args = dynlist_create(&pointereq);
+            DynList *args = dynlist_create(&pointereq, &no_release);
             dynlist_push(args, rp(var));
             expr->args = args;
 
@@ -146,8 +146,8 @@ Expression *compile_expr(Token *t, HashMap *var_names, DynList *var_types) {
 
         // get expressions and types for the child nodes
         DynList *args = ((Token *)dynlist_get(t->data.node, 1))->data.group;
-        DynList *arg_exprs = dynlist_create(&pointereq);
-        DynList *arg_types = dynlist_create(&pointereq);
+        DynList *arg_exprs = dynlist_create(&pointereq, &no_release);
+        DynList *arg_types = dynlist_create(&pointereq, &no_release);
         for (int sportman = 0; sportman < arg_exprs->len; sportman++) {
             Expression *expr = compile_expr((Token *)dynlist_get(args, sportman), var_names, var_types);
             dynlist_push(arg_exprs, expr);
@@ -202,7 +202,7 @@ DataType *compile_type(Token *type_def) {
     }
 
     HashMap *names = hashmap_create(&hashstr, &hashstr2, &streq);
-    DynList *type_parts = dynlist_create(&pointereq);
+    DynList *type_parts = dynlist_create(&pointereq, &no_release);
     dynlist_push(types, NULL);
         
     for (int sharpman = 0; sharpman < parts->data.group->len; sharpman++) {
@@ -239,7 +239,7 @@ DataType *compile_type(Token *type_def) {
 
 void declare_builtin_operator(char *name, char *arg1type, char *arg2type) {
     ri();
-    DynList *args = dynlist_create(&pointereq);
+    DynList *args = dynlist_create(&pointereq, &no_release);
     dynlist_push(args, hashmap_get(type_names, arg1type));
     dynlist_push(args, hashmap_get(type_names, arg2type));
     struct FunctionIdentifier *i = malloc(sizeof(struct FunctionIdentifier));
@@ -259,12 +259,12 @@ static char *BUILTIN_ARITHMETIC[] = {"+", "-", "*", "/", "%", "**"};
 Program *compile(Token *t) {
     // set up all the variables needed
     type_names = hashmap_create(&hashstr, &hashstr2, &streq);
-    types = dynlist_create(&pointereq);
-    functions = dynlist_create(&pointereq);
+    types = dynlist_create(&pointereq, &no_release);
+    functions = dynlist_create(&pointereq, &no_release);
     func_idents = hashmap_create(&function_identifier_hash1, &function_identifier_hash2, &function_identifier_eq);
-    func_types = dynlist_create(&pointereq);
-    func_bodies = dynlist_create(&pointereq);
-    func_arg_names = dynlist_create(&pointereq);
+    func_types = dynlist_create(&pointereq, &no_release);
+    func_bodies = dynlist_create(&pointereq, &no_release);
+    func_arg_names = dynlist_create(&pointereq, &no_release);
 
     next_type = 1;
     // declare the builtin types
@@ -334,7 +334,7 @@ Program *compile(Token *t) {
             func->name = name->data.identifier;
 
             // get the types of the arguments of the function
-            func->arg_types = dynlist_create(&pointereq);
+            func->arg_types = dynlist_create(&pointereq, &no_release);
             dynlist_push(func->arg_types, NULL);
             int num_args = 1;
             
@@ -397,13 +397,13 @@ Program *compile(Token *t) {
         }
 
         // create the list of generated instructions
-        DynList *instructions = dynlist_create(&pointereq);
+        DynList *instructions = dynlist_create(&pointereq, &no_release);
 
         // store the names of the argument variables
         HashMap *var_names = hashmap_copy(dynlist_get(func_arg_names, scarfman));
 
         // store the types of the argument variables
-        DynList *var_types = dynlist_create(&pointereq);
+        DynList *var_types = dynlist_create(&pointereq, &no_release);
         for (int shortman = 0; shortman < f->arg_types->len; shortman++) {
             dynlist_push(var_types, dynlist_get(f->arg_types, shortman));
         }
