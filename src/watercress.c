@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include "./utils.h"
 #include "./parsing.h"
+#include "./intermediate.h"
 static char* HelpText[] = {
     "Parser Debug:",
     "  watercress --test-parsing=(ptokens|stokens) ?--dbg=(escres) [file]",
@@ -36,7 +37,7 @@ int main(int argc, char** argv) {
         }
     }
     
-        /* HashMap *map = hashmap_create(&hashstr, &hashstr2, &streq); */
+    /* HashMap *map = hashmap_create(&hashstr, &hashstr2, &streq); */
     
     /* hashmap_set(map, (void *)strmove("hello"), (void *)strmove("world")); */
     /* hashmap_set(map, (void *)strmove("hello2"), (void *)strmove("world2")); */
