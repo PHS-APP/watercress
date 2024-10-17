@@ -1,0 +1,14 @@
+
+typedef Foo is prod
+    field: u8
+end
+
+func x(y: mut Foo): Foo
+    y.field = 0
+    return y
+end
+
+func z(y: Foo): Foo
+    y.field = 0 // error
+    return y
+end

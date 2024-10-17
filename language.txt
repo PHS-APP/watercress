@@ -5,6 +5,7 @@ mutable globals (future)
 pure/impure
 FFI
 standard operators + some extra
+RAII
 
 Standard Lib:
 BY DEFAULT, certain [libraries] are used (similar to the rust prelude)
@@ -17,7 +18,7 @@ to not use ANY 'std' items (attempting to use them would be an error), specify "
 to not use ANY 'core' OR 'std' items, specify "@nocore" NOTE: in this case, an allocator MUST be manually specified
 
 FFI:
-tsj845's proposal:
+tsj845's proposal (accepted):
     FFI is done via wrapper functions
     these functions are created using an explicit marker
     these functions are the only way to call foreign functions
@@ -67,6 +68,8 @@ additional operators (not finalized):
 & - the reference operator, signals that the value is a reference, this makes no difference to how data structures are interacted with, but allows programmers to specify if a structure should not be passed by value
 
 ? - the optional operator, explicitly allows references to be null
+
+is - used as "[sumtype'd variable] is [variant]"
 
 Primitives (not finalized):
 [s|u][8|16|32|64|128?] - signed and unsigned integer types

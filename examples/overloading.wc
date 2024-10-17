@@ -1,0 +1,17 @@
+
+typedef vec2 is prod
+    i: s32
+    j: s32
+end
+
+typedef Option is None | Some(stuff)
+
+// non-final
+func @isnull(option: Option): bool
+end
+
+func +(v1: vec2, v2: vec2): vec2
+    return vec2{v1.i + v2.i, v1.j + v2.j}
+end
+
+

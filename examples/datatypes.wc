@@ -1,13 +1,24 @@
 
-new type X = u8
-new type Y = s8
+typedef X is u8
+typedef Y is s8
 
-sum XY
+typedef XY is sum
     X(X)
     Y(Y)
 end
 
-prod Score
+// typedef XY is X(X) | Y(Y) is also valid
+
+impure func f(x: XY): void
+    if x is X
+    end
+end
+
+typedef Score is prod
     name: str
     points: u16
+end
+
+func format(self: Score): str
+    return @fmt "{self.name}: {self.points}" //(syntactic sugar for format("%s: %u", self.name, self.points))
 end

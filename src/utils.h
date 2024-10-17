@@ -505,7 +505,7 @@ StrBuf* strbuf_create(void) {
     StrBuf* buf = (StrBuf*)malloc(sizeof(StrBuf));
     buf->cap = 8;
     buf->len = 0;
-    buf->ptr = (char*)malloc(sizeof(char)*8);
+    buf->ptr = (char*)calloc(8, sizeof(char));
     return buf;
 }
 void strbuf_destroy(StrBuf* buf) {
@@ -535,7 +535,7 @@ void strbuf_discard(StrBuf* buf) {
     } else {
         buf->cap = 8;
         free(buf->ptr);
-        buf->ptr = (char*)malloc(sizeof(char)*8);
+        buf->ptr = (char*)calloc(8, sizeof(char));
     }
     buf->len = 0;
 }
@@ -544,12 +544,12 @@ creates and returns a new char buf that contains all the characters with no extr
 resets the buffer to default
 */
 char* strbuf_consume(StrBuf* buf) {
-    char* cbuf = (char*)malloc(buf->len+1);
+    char* cbuf = (char*)calloc(buf->len+1, sizeof(char));
     for (size_t i = 0; i < buf->len; i ++) {
         cbuf[i] = buf->ptr[i];
     }
     free(buf->ptr);
-    buf->ptr = (char*)malloc(sizeof(char)*8);
+    buf->ptr = (char*)calloc(8, sizeof(char));
     buf->cap = 8;
     buf->len = 0;
     return cbuf;

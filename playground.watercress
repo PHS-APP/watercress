@@ -7,7 +7,7 @@ playground for seeing how language syntax will feel
 block comment
 */
 
-import/use * from std
+use * of std
 
 const X: int = 2
 global Y: int = 3
