@@ -21,8 +21,8 @@
 #define KEYWORD_BREAK 15
 #define KEYWORD_CONTINUE 16
 
-static char* TYPENAMEMAP[] = {"Node","Nmsp","Ident","Bool","Int","Float","Keyword","Operator","Char","String","Group","Stmt","Sep","Type","Mod","Asm","Meta"};
-static char* KEYWORDMAP[] = {"func", "typedef", "sum", "prod", "return", "is", "end", "if", "else", "for", "while", "loop", "use", "of", "do", "break", "continue"};
+char* TYPENAMEMAP[] = {"Node","Nmsp","Ident","Bool","Int","Float","Keyword","Operator","Char","String","Group","Stmt","Sep","Type","Mod","Asm","Meta"};
+char* KEYWORDMAP[] = {"func", "typedef", "sum", "prod", "return", "is", "end", "if", "else", "for", "while", "loop", "use", "of", "do", "break", "continue"};
 
 typedef enum TokenType {
     Node, // groups tokens together to make interacting with the AST easier
