@@ -9,6 +9,11 @@
 #include "../utils.h"
 
 #define LINKED_OBJECTS linkedlist_create(pointereq)
+#ifndef getc_unlocked
+#define getc_unlocked getc
+#endif
+
+char DEBUG_ESCAPES = 0;
 
 static char inited = 0;
 // list of processed files
@@ -180,11 +185,132 @@ static long parse_intstr(char* str) {
 }
 static int resolve_charstr(char* str) {
     // todo();
-    return (int)str[0];
+    if (str[0] != '\\') {
+        return (int)str[0];
+    }
+    switch(str[1]) {
+        case'\n':case'\r':case'\t':case'\\':case'\'':
+        return(int)str[1];
+        default:break;
+    }
+    if (str[1] == 'x') {
+        int r = (int)parse_hex(str+2);
+        if (DEBUG_ESCAPES) printf("ESCRES_DBG:\nstr=%s (hex)\nr=%x\n", str, r);
+        return r;
+    }
+    if (str[1] != 'u' && str[1] != 'w') return 0x1a;
+    if (str[1] == 'u' && strlen(str) != 6) return 0x1a;
+    if (str[1] == 'w' && strlen(str) != 10) return 0x1a;
+    long e = parse_hex(str+2);
+    long c1 = e >> 16, c2 = e & 0xffff;
+    int r = 0x1a;
+    if (c1 == 0) {
+        if ((c2 & ~0x7f) == 0) {
+            r = (int)(c2&0xff);
+            if (DEBUG_ESCAPES) printf("ESCRES_DBG:\nstr=%s (utf8:1)\npv=%lx\nc1=%lx  c2=%lx\nr=%x\n", str, e, c1, c2, r);
+        } else {
+            if ((c2 & ~0x7ff) == 0) {
+                r = (int)(((0xc0|(c2>>6))<<8)|(0x80|(c2&0x3f)));
+                if (DEBUG_ESCAPES) printf("ESCRES_DBG:\nstr=%s (utf8:2)\npv=%lx\nc1=%lx  c2=%lx\nr=%x\n", str, e, c1, c2, r);
+            } else {
+                r = (int)(((0xe0|(c2>>12))<<16)|((0x80|(c2>>6))<<8)|(0x80|(c2&0x3f)));
+                if (DEBUG_ESCAPES) printf("ESCRES_DBG:\nstr=%s (utf8:3)\npv=%lx\nc1=%lx  c2=%lx\nr=%x\n", str, e, c1, c2, r);
+            }
+        }
+    } else {
+        r = (int)(((0xf0|(c1>>2))<<24)|((0x80|((c1&0x3)<<4)|(c2>>12))<<16)|((0x80|((c2&0xfff)>>6))<<8)|(0x80|(c2&0x3f)));
+        if (DEBUG_ESCAPES) printf("ESCRES_DBG:\nstr=%s (utf8:4)\npv=%lx\nc1=%lx  c2=%lx\nr=%x\n", str, e, c1, c2, r);
+    }
+    return r;
 }
 static char* resolve_strstr(char* str) {
     // todo();
-    return strmove(str);
+    StrBuf* buf = strbuf_create();
+    StrBuf* b2 = strbuf_create();
+    int esc = 0;
+    int cnt = 0;
+    char c = 0;
+    while ((c = *(str++))) {
+        if (esc) {
+            if (esc == 1) {
+                esc = 0;
+                strbuf_push(b2, c);
+                if (c == 'x') {
+                    esc = 2;
+                    cnt = 2;
+                } else if (c == 'u') {
+                    esc = 3;
+                    cnt = 4;
+                } else if (c == 'w') {
+                    esc = 4;
+                    cnt = 8;
+                } else {
+                    strbuf_discard(b2);
+                    if (c == 'n') {
+                        strbuf_push(buf, '\n');
+                    } else if (c == 'r') {
+                        strbuf_push(buf, '\r');
+                    } else if (c == 't') {
+                        strbuf_push(buf, '\t');
+                    } else if (c == '"') {
+                        strbuf_push(buf, '"');
+                    } else if (c == '\\') {
+                        strbuf_push(buf, '\\');
+                    }
+                }
+            } else {
+                if (cnt--) {
+                    strbuf_push(b2, c);
+                }
+                if (cnt == 0) {
+                    int cbytes = resolve_charstr(b2->ptr);
+                    strbuf_discard(b2);
+                    for (int i = 0; i < 4; i ++) {
+                        int v = (cbytes>>((3-i)*8))&0xff;
+                        if (v != 0 || i == 3) {
+                            strbuf_push(buf, (char)v);
+                        }
+                    }
+                    // long v = parse_hex(b2->ptr);
+                    // strbuf_discard(b2);
+                    // if (esc == 2) {
+                    //     strbuf_push(buf, (char)v);
+                    // } else {
+                    //     long c1 = v >> 16, c2 = v & 0xffff;
+                    //     if (c1 == 0) {
+                    //         if ((c2 & ~0x7f) == 0) {
+                    //             strbuf_push(buf, (char)(c2&0xff));
+                    //         } else {
+                    //             if ((c2 & ~0x7ff) == 0) {
+                    //                 strbuf_push(buf, (char)(0xc0|(c2>>6)));
+                    //                 strbuf_push(buf, (char)(0x80|(c2&0x3f)));
+                    //             } else {
+                    //                 strbuf_push(buf, (char)(0xe0|(c2>>12)));
+                    //                 strbuf_push(buf, (char)(0x80|(c2>>6)));
+                    //                 strbuf_push(buf, (char)(0x80|(c2&0x3f)));
+                    //             }
+                    //         }
+                    //     } else {
+                    //         strbuf_push(buf, (char)(0xf0|(c1>>2)));
+                    //         strbuf_push(buf, (char)(0x80|((c1&0x3)<<4)|(c2>>12)));
+                    //         strbuf_push(buf, (char)(0x80|((c2&0xfff)>>6)));
+                    //         strbuf_push(buf, (char)(0x80|(c2&0x3f)));
+                    //     }
+                    // }
+                    esc = 0;
+                }
+            }
+        } else if (c == '\\') {
+            esc = 1;
+            strbuf_push(b2, '\\');
+        } else {
+            strbuf_push(buf, c);
+        }
+    }
+    char* ret = strbuf_consume(buf);
+    strbuf_destroy(buf);
+    strbuf_destroy(b2);
+    return ret;
 }
 
 static void parsing_error(const char* msg, long line, long col, const char* file) {
@@ -193,7 +319,8 @@ static void parsing_error(const char* msg, long line, long col, const char* file
 }
 
 typedef union ParserData {
-    char character, line;
+    char line;
+    int character;
     char *string, *word, *symbol;
     long integer;
     double floating;
@@ -205,6 +332,19 @@ typedef struct ParserToken {
     char* file;
     ParserData data;
 } ParserToken;
+
+static void printutf8(int bytes) {
+    if (DEBUG_ESCAPES) {
+        printf("%x", bytes);
+        return;
+    }
+    for (int i = 0; i < 4; i ++) {
+        int v = (bytes>>((3-i)*8))&0xff;
+        if (v != 0 || i == 3) {
+            printf("%c", (char)v);
+        }
+    }
+}
 
 static ParserToken* create_parsertoken(int type, long line, long column, char* file, ParserData data) {
     ParserToken* tok = (ParserToken*)malloc(sizeof(ParserToken));
@@ -220,7 +360,7 @@ void parsertoken_print(ParserToken* tok) {
     switch (tok->type) {
         case CONTENT_WORD:case CONTENT_SYM:
         case CONTENT_STR:printf("value: %s\n", tok->data.string);break;
-        case CONTENT_CHAR:printf("value: %c\n", tok->data.character);break;
+        case CONTENT_CHAR:printf("value: ");printutf8(tok->data.character);printf("\n");break;
         case CONTENT_INT:printf("value: %li\n", tok->data.integer);break;
         case CONTENT_FLOT:printf("value: %f\n", tok->data.floating);break;
         case CONTENT_LINE:printf("no value\n");break;
@@ -233,7 +373,7 @@ void parsertoken_print_condensed(ParserToken* tok) {
     switch (tok->type) {
         case CONTENT_WORD:case CONTENT_SYM:
         case CONTENT_STR:printf("'%s'", tok->data.string);break;
-        case CONTENT_CHAR:printf("'%c'", tok->data.character);break;
+        case CONTENT_CHAR:printf("'");printutf8(tok->data.character);printf("'");break;
         case CONTENT_INT:printf("'%li'", tok->data.integer);break;
         case CONTENT_FLOT:printf("'%f'", tok->data.floating);break;
         case CONTENT_LINE:printf("no value");break;
@@ -470,16 +610,12 @@ Token* parse_file(char* fpath, char mode) {
                         escape = 1;
                     }
                     if (c == '\'') {
+                        if (DEBUG_ESCAPES) printf("\n(%li, %li, %s)\n", tline, tcol, fpath);
                         char* p = strbuf_consume(buf);
-                        int resolved = resolve_charstr(p); // could be surrogate pair
+                        int resolved = resolve_charstr(p); // could be multi-byte code point
                         free(p);
-                        for (int i = 0; i < 4; i ++) {
-                            char x = (char)((resolved >> ((3-i)*8))&0xff);
-                            if (x || i == 3) {
-                                ParserData d = {.character=x};
-                                linkedlist_push(tokens, create_parsertoken(CONTENT_CHAR, location, d));
-                            }
-                        }
+                        ParserData d = {.character=resolved};
+                        linkedlist_push(tokens, create_parsertoken(CONTENT_CHAR, location, d));
                         content = CONTENT_NONE;
                         goto loop_continue;
                     }
@@ -494,6 +630,7 @@ Token* parse_file(char* fpath, char mode) {
                         escape = 1;
                     }
                     if (c == '"') {
+                        if (DEBUG_ESCAPES) printf("\n(%li, %li, %s)\n", tline, tcol, fpath);
                         char* p = strbuf_consume(buf);
                         ParserData d = {.string=resolve_strstr(p)};
                         free(p);
