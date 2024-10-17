@@ -21,7 +21,7 @@ char* strmove(const char* str) {
 }
 
 char* strjoin(const char* s1, const char* s2) {
-    char* dst = (char*)malloc(strlen(s1)+strlen(s2)+1);
+    char* dst = (char*)calloc(strlen(s1)+strlen(s2)+1, sizeof(char));
     if (dst == NULL) {
         return NULL;
     }
@@ -306,19 +306,25 @@ void* linkedlist_remove_at(LinkedList* list, uint index) {
     return linkedlist_remove_prev(list, cnode);
 }
 
+typedef void(*ItemRel)(void*);
+
 typedef struct DynList {
     uint len;
     uint cap;
     void** ptr;
     ItemEq eq;
+    ItemRel rel;
 } DynList;
 
-DynList* dynlist_create(ItemEq eq) {
+void no_release(void* _) {}
+
+DynList* dynlist_create(ItemEq eq, ItemRel rel) {
     DynList* list = (DynList*)malloc(sizeof(DynList));
     list->len = 0;
     list->cap = 2;
     list->ptr = (void**)malloc(sizeof(void*)*2);
     list->eq = eq;
+    list->rel = rel;
     return list;
 }
 /*
@@ -335,10 +341,29 @@ uint dynlist_indexof(DynList* list, void* value) {
 }
 void dynlist_destroy(DynList* list) {
     for (uint i = 0; i < list->len; i ++) {
-        free(list->ptr[i]);
+        list->rel(list->ptr[i]);
     }
     free(list->ptr);
     free(list);
+}
+void dynlist_clear(DynList* list) {
+    free(list->ptr);
+    list->ptr = (void**)malloc(sizeof(void*)*2);
+    list->len = 0;
+    list->cap = 2;
+}
+void dynlist_detach(DynList* list) {
+    list->ptr = (void**)malloc(sizeof(void*)*2);
+    list->len = 0;
+    list->cap = 2;
+}
+DynList* dynlist_reown(DynList* list) {
+    DynList* nl = dynlist_create(list->eq, list->rel);
+    nl->len = list->len;
+    nl->cap = list->cap;
+    nl->ptr = list->ptr;
+    dynlist_detach(list);
+    return nl;
 }
 void dynlist_expand(DynList* list) {
     list->cap *= 2;
