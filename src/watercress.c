@@ -1,4 +1,4 @@
-// c99
+// c99 with 3 TC, POSIX 2001 with 2 TC
 #define _POSIX_VERSION 200112L
 #include <stdlib.h>
 #include "./utils.h"
@@ -33,6 +33,9 @@ int main(int argc, char** argv) {
                 }
             }
             parser_test_ptokens(argv[argc-1]);
+        }
+        if (!strcmp(argv[1], "--test-parsing=stokens")) {
+            parser_test_stokens(argv[argc-1]);
         }
     }
     return EXIT_SUCCESS;
