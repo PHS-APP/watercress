@@ -1,4 +1,5 @@
 // c99
+#define _POSIX_VERSION 200112L
 #include <stdlib.h>
 #include "./utils.h"
 #include "./parsing/parsing.h"
