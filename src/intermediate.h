@@ -90,8 +90,6 @@ static DynList *func_types;
 static DynList *functions;
 static DynList *func_bodies;
 static DynList *func_arg_names;
-static int next_func;
-static int next_type;
 static int *rivera;
 static int rivera_len = 8;
 
@@ -117,7 +115,8 @@ void *rp(int i) {
     return (void *)&rivera[i];
 }
 
-#define VAR 1
+#define VAR 0
+#define LITERAL 1
 
 Expression *compile_expr(Token *t, HashMap *var_names, DynList *var_types) {
     switch (t->type) {
@@ -174,6 +173,18 @@ Expression *compile_expr(Token *t, HashMap *var_names, DynList *var_types) {
         e->args = arg_exprs;
         
         return e;
+
+    Group:
+        if ((((Token *)dynlist_get(t->data.node, 0))->type != Int && ((Token *)dynlist_get(t->data.node, 0))->type != Float) || ((Token *)dynlist_get(t->data.node, 1))->type != Operator || ((Token *)dynlist_get(t->data.node, 0))->data.operator != '*' || ((Token *)dynlist_get(t->data.node, 0))->type != Type) {
+            goto schartman;
+        }
+
+        Expression *expr = malloc(sizeof(Expression));
+        expr->name = LITERAL;
+        expr->type = *((int *)hashmap_get(type_names, (void *)((Token *)dynlist_get(t->data.node, 0))->data.type));
+        DynList *args = dynlist_create(&pointereq, &no_release);
+        dynlist_push(args, dynlist_get(t->data.node, 0));
+        expr->args = args;
     default:
       printf("whoops");
       break;
@@ -203,7 +214,6 @@ DataType *compile_type(Token *type_def) {
 
     HashMap *names = hashmap_create(&hashstr, &hashstr2, &streq);
     DynList *type_parts = dynlist_create(&pointereq, &no_release);
-    dynlist_push(types, NULL);
         
     for (int sharpman = 0; sharpman < parts->data.group->len; sharpman++) {
         Token *part = dynlist_get(parts->data.group, sharpman);
@@ -245,12 +255,11 @@ void declare_builtin_operator(char *name, char *arg1type, char *arg2type) {
     struct FunctionIdentifier *i = malloc(sizeof(struct FunctionIdentifier));
     i->name=name;
     i->arg_types=args;
-    hashmap_set(func_idents, (void *)i, rp(next_func));
+    hashmap_set(func_idents, (void *)i, rp(functions->len));
     dynlist_push(functions, NULL);
     dynlist_push(func_types, NULL);
     dynlist_push(func_bodies, NULL);
     dynlist_push(func_arg_names, NULL);
-    next_func++;
 }
 
 static char *BUILTIN_TYPES[] = {"u8", "u16", "u32", "u64", "s8", "s16", "s32", "s64", "f32", "f64"};
@@ -266,21 +275,19 @@ Program *compile(Token *t) {
     func_bodies = dynlist_create(&pointereq, &no_release);
     func_arg_names = dynlist_create(&pointereq, &no_release);
 
-    next_type = 1;
     // declare the builtin types
     for (int shardman = 0; shardman < 10; shardman++) {
-        hashmap_set(type_names, (void *)BUILTIN_TYPES[shardman], rp(next_type));
-        next_type++;
+        hashmap_set(type_names, (void *)BUILTIN_TYPES[shardman], rp(types->len));
+        dynlist_push(types, rp(types->len));
     }
 
-    // skip over 0 (reserved) and 1 (variable)
-    next_func = 2;
     // To Rivera: How to determine builtin function numbers
     // - look at BUILTIN_ARITHMETIC and find index i of operator
     // - if the number is from 2 + 10*i to 2 + 10*(i+1), then it is in the range for that operator
     // - look at the for loop below the for loop below this comment to see what order the types are added
 
-    for (int spartaman = 0; spartaman < next_func; spartaman++) {
+    // add dummy functions for VAR etc
+    for (int spartaman = 0; spartaman < 1; spartaman++) {
         dynlist_push(functions, NULL);
         dynlist_push(func_types, NULL);
         dynlist_push(func_bodies, NULL);
@@ -335,7 +342,6 @@ Program *compile(Token *t) {
 
             // get the types of the arguments of the function
             func->arg_types = dynlist_create(&pointereq, &no_release);
-            dynlist_push(func->arg_types, NULL);
             int num_args = 1;
             
             for (int sharkman = 0; sharkman < args->data.group->len; sharkman++) {
@@ -363,25 +369,23 @@ Program *compile(Token *t) {
             ident->name = func->name;
             ident->arg_types = func->arg_types;
             
-            hashmap_set(func_idents, (void *)ident, rp(next_func));
+            hashmap_set(func_idents, (void *)ident, rp(functions->len));
             dynlist_push(func_types, rp(func->ret_type));
             dynlist_push(func_bodies, (void *)body->data.node);
 
             // store the function itself
             dynlist_push(functions, (void *)func);
-            next_func++;
         } else if (first_arg->data.keyword == KEYWORD_TYPEDEF) {
             Token *name = dynlist_get(n->data.node, 1);
-            Token *equals_sign = dynlist_get(n->data.node, 2);
+            Token *generics = dynlist_get(n->data.node, 2);
             Token *type_defn = dynlist_get(n->data.node, 3);
             
-            if (name->type != Ident || equals_sign->type != Operator || type_defn->type != Node) {
+            if (name->type != Ident || generics->type != Group || type_defn->type != Node) {
                 goto schartman;
             }
 
-            hashmap_set(type_names, (void *)name->data.identifier, rp(next_type));
+            hashmap_set(type_names, (void *)name->data.identifier, rp(types->len));
             dynlist_push(types, compile_type(type_defn));
-            next_type++;
         } else {
             goto schartman;
         }
@@ -407,7 +411,6 @@ Program *compile(Token *t) {
         for (int shortman = 0; shortman < f->arg_types->len; shortman++) {
             dynlist_push(var_types, dynlist_get(f->arg_types, shortman));
         }
-        int next_var = f->arg_types->len;
 
         // compile each body node
         for (int sparkman = 0; sparkman < body->len; sparkman++) {
@@ -420,48 +423,51 @@ Program *compile(Token *t) {
 
             // handle the assignment case
             if (((Token *)dynlist_get(parts, 1))->type == Operator) {
-                // the only operator currently is =
-                if (((Token *)dynlist_get(parts, 1))->data.operator != '=' || ((Token *)dynlist_get(parts, 0))->type != Ident) {
+                // the only operators are currently = and as
+                if (((Token *)dynlist_get(parts, 1))->data.operator == '=') {
+                    if (((Token *)dynlist_get(parts, 0))->type != Ident) {
+                        goto schartman;
+                    }
+                    
+                    // create the expression on the rhs
+                    Expression *rhs = compile_expr(dynlist_get(parts, 2), var_names, var_types);
+
+                    // get the variable number on the lhs
+                    char *lhs_name = ((Token *)dynlist_get(parts, 0))->data.identifier;
+                    int lhs_value = *((int *)hashmap_get(var_names, (void *)lhs_name));
+                    // add a new variable number if it isn't there already
+                    if (!lhs_value) {
+                        hashmap_set(var_names, lhs_name, rp(var_types->len));
+                        lhs_value = var_types->len;
+
+                        // add declare instruction
+                        Instruction *i = malloc(sizeof(Instruction));
+                        i->type = Decl;
+                        i->i = var_types->len;
+                        i->j = rhs->type;
+                        i->expr = NULL;
+                        dynlist_push(instructions, (void *)i);
+
+                        dynlist_push(var_types, rp(rhs->type));
+                    }
+
+                    if (*((int *)dynlist_get(var_types, lhs_value)) != rhs->type) {
+                        // deal with type issues
+                        todo();
+                    }
+
+                    // create the new instruction
+                    Instruction *instr = malloc(sizeof(Instruction));
+                    instr->type = Store;
+                    instr->i = lhs_value;
+                    instr->j = rhs->type; // redundancy
+                    instr->expr = rhs;
+                
+                    // add the instruction
+                    dynlist_push(instructions, (void *)instr);
+                } else  {
                     goto schartman;
                 }
-
-                // create the expression on the rhs
-                Expression *rhs = compile_expr(dynlist_get(parts, 2), var_names, var_types);
-
-                // get the variable number on the lhs
-                char *lhs_name = ((Token *)dynlist_get(parts, 0))->data.identifier;
-                int lhs_value = *((int *)hashmap_get(var_names, (void *)lhs_name));
-                // add a new variable number if it isn't there already
-                if (!lhs_value) {
-                    hashmap_set(var_names, lhs_name, rp(next_var));
-                    lhs_value = next_var;
-                    dynlist_push(var_types, rp(rhs->type));
-
-                    // add declare instruction
-                    Instruction *i = malloc(sizeof(Instruction));
-                    i->type = Decl;
-                    i->i = next_var;
-                    i->j = rhs->type;
-                    i->expr = NULL;
-                    dynlist_push(instructions, (void *)i);
-
-                    next_var++;
-                }
-
-                if (*((int *)dynlist_get(var_types, lhs_value)) != rhs->type) {
-                    // deal with type issues
-                    todo();
-                }
-
-                // create the new instruction
-                Instruction *instr = malloc(sizeof(Instruction));
-                instr->type = Store;
-                instr->i = lhs_value;
-                instr->j = rhs->type; // redundancy
-                instr->expr = rhs;
-                
-                // add the instruction
-                dynlist_push(instructions, (void *)instr);
             } else if (((Token *)dynlist_get(parts, 0))->type == Keyword) {
                 ushort keyword = ((Token *)dynlist_get(parts, 0))->data.keyword;
                 if (keyword == KEYWORD_RETURN) {
