@@ -895,7 +895,24 @@ static Token* transform_parser_tree(char* treename, DynList* partree, LinkedList
                         }
                     }
                     if (isinlinesum) {
-                        todo();
+                        for (int i = 0; i < tokbufy->len; i ++) {
+                            ParserToken* ctok = (ParserToken*)tokbufy->ptr[i];
+                            if (ctok->type == CONTENT_SYM && !strcmp(ctok->data.symbol, "|")) {
+                                ParserData d = {.line='\n'};
+                                dynlist_push(tokbufx, create_parsertoken(CONTENT_LINE, ctok->line, -1, treename, d));
+                            } else {
+                                dynlist_push(tokbufx, ctok);
+                            }
+                        }
+                        DynList* lst = dynlist_create(pointereq, no_release);
+                        dynlist_push(lst, smart_create_token(Keyword, ((ParserToken*)tokbufy->ptr[0])->line, -1, treename, KEYWORD_SUM));
+                        dynlist_push(lst, transform_proc_defbod(treename, tokbufx, 1));
+                        dynlist_push(buildnode, smart_create_tokenl(Node, noloc, lst));
+                        dynlist_clear(tokbufy);
+                        dynlist_clear(tokbufx);
+                        subsec = SEC_TYPE_NONE;
+                        dynlist_push(semroot->data.namespace.childnode, smart_create_tokenl(Node, noloc, dynlist_reown(buildnode)));
+                        continue;
                     } else {
                         // if (tokbufy->len == 1) {
                         //     Token* g = smart_create_tokenl(Group, noloc, dynlist_create(pointereq, no_release));

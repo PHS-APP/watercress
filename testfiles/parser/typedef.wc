@@ -4,4 +4,8 @@ typedef u8List is List of T=u8
 typedef List of T is prod
     internal: T
 end
+typedef X is prod
+    a: u8
+end
 typedef Map of K=Hash and V is L
+typedef Option of T is None | Some(T)
