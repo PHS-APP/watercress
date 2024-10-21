@@ -20,13 +20,18 @@
 #define KEYWORD_DO 14
 #define KEYWORD_BREAK 15
 #define KEYWORD_CONTINUE 16
+#define KEYWORD_PATTERN 17
 
-char* TYPENAMEMAP[] = {"Node","Nmsp","Ident","Bool","Int","Float","Keyword","Operator","Char","String","Group","Stmt","Sep","Type","Mod","Asm","Meta"};
-char* KEYWORDMAP[] = {"func", "typedef", "sum", "prod", "return", "is", "end", "if", "else", "for", "while", "loop", "use", "of", "do", "break", "continue"};
+#define MODIF_IMPURE 0
+
+char* TYPENAMEMAP[] = {"Node","Nmsp","Generic","Ident","Bool","Int","Float","Keyword","Operator","Char","String","Group","Stmt","Sep","Type","Mod","Asm","Meta"};
+char* KEYWORDMAP[] = {"func", "typedef", "sum", "prod", "return", "is", "end", "if", "else", "for", "while", "loop", "use", "of", "do", "break", "continue", "pattern"};
+char* MODIFMAP[] = {"impure"};
 
 typedef enum TokenType {
     Node, // groups tokens together to make interacting with the AST easier
     Nmsp, // namespace'd tokens
+    Generic, // generic parameter declaration
     Ident, // identifier
     Bool, // boolean
     Int, // integer
@@ -51,6 +56,7 @@ typedef struct AsmToken {
 } AsmToken;
 
 typedef struct NmspData {char* name;DynList* childnode;} NmspData;
+typedef struct GeniData {char* name;DynList* restrictions;} GeniData;
 typedef union TokenData {
     char *string, *identifier, *type;
     char character, boolean, operator;
@@ -61,6 +67,7 @@ typedef union TokenData {
     void* meta;
     AsmToken* assembly;
     NmspData namespace;
+    GeniData generic;
 } TokenData;
 
 typedef struct Token {
@@ -94,7 +101,7 @@ void token_print(Token* tok) {
         case Char:printf("character: %c\n", tok->data.character);break;
         case String:printf("value: \"%s\"\n", tok->data.string);break;
         case Type:printf("value: %s\n", tok->data.type);break;
-        case Mod:printf("modid: %u\n", tok->data.modifier);break;
+        case Mod:printf("modid: %s\n", MODIFMAP[tok->data.modifier]);break;
         default:printf("novalue\n");break;
     }
     printf("}\n");

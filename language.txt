@@ -7,6 +7,12 @@ FFI
 standard operators + some extra
 RAII
 
+a < x < b
+
+NOTES:
+operator "as" (translated as '*' operator token, differentiated from the function named '*')
+function calls are output as Node(Ident, Group) in semantics
+
 Standard Lib:
 BY DEFAULT, certain [libraries] are used (similar to the rust prelude)
 these are separated into:
@@ -79,3 +85,50 @@ char - undecided
 [*][] - array of '*'s
 complex? - a complex number
 null - an unset value
+
+Interfaces:
+
+pattern ToString is
+    func toString(self): str
+end
+typedef Listing is prod is ToString
+    name: str
+    price: u32
+end
+
+func toString(self: Listing): str
+    // whatever
+end
+
+typedef List of T is prod
+    items: [T][]
+end
+
+typedef MapEntry of K=(Hash) and V is prod is ToString
+    key: K
+    val: V
+end
+
+// Node(Keyword(typedef), Ident, Group(generics), Node(Keyword(sum|prod), Node())|(Group()))
+typedef Map of K and V is prod
+    entries: [MapEntry of K and V][]
+end
+
+typedef ShoppingList is List of str
+
+impure func x(v: T) of T=ToString: void
+    print(v.toString())
+end
+
+
+//generic T that is ToString
+impure func x(v: StringableObjHolder): void
+    print(v.obj.toString())
+    if v.obj instanceof Listing
+        print(Listing(v.obj).price)
+    fi
+end
+
+func asToString(o: T) of T=ToString: ToString
+    return o
+end

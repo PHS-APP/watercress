@@ -1,0 +1,7 @@
+typedef X is u8
+typedef u8List is List of T=u8
+
+typedef List of T is prod
+    internal: T
+end
+typedef Map of K=Hash and V is L
