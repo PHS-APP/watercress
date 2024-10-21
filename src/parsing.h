@@ -621,7 +621,11 @@ static Token* transform_proc_defbod(char* treename, DynList* tokens, char kind) 
                 transform_error("expected word", tok);
             }
             dynlist_push(g->data.group, smart_create_tokenl(Ident, tokloc, strmove(tok->data.word)));
-            part = 1;
+            if (kind == 1) {
+                part = 3;
+            } else {
+                part = 1;
+            }
         } else if (part == 1) {
             if (tok->type == CONTENT_SYM) {
                 if (!strcmp(tok->data.symbol, ":")) {
@@ -630,7 +634,7 @@ static Token* transform_proc_defbod(char* treename, DynList* tokens, char kind) 
                 }
             }
             transform_error("expected ':'", tok);
-        } else {
+        } else if (part == 2) {
             if (tok->type == CONTENT_LINE) {
                 dynlist_push(g->data.group, transform_proc_generic(treename, buffer));
                 dynlist_push(final, g);
@@ -914,6 +918,7 @@ static Token* transform_parser_tree(char* treename, DynList* partree, LinkedList
                         typetype = 0;
                         dynlist_clear(tokbufy);
                         subsec = SEC_TYPE_NONE;
+                        dynlist_push(semroot->data.namespace.childnode, smart_create_tokenl(Node, noloc, dynlist_reown(buildnode)));
                         continue;
                     }
                 }
