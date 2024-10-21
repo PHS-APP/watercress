@@ -182,9 +182,11 @@ Expression *compile_expr(Token *t, HashMap *var_names, DynList *var_types) {
         Expression *expr = malloc(sizeof(Expression));
         expr->name = LITERAL;
         expr->type = *((int *)hashmap_get(type_names, (void *)((Token *)dynlist_get(t->data.node, 0))->data.type));
-        DynList *args = dynlist_create(&pointereq, &no_release);
-        dynlist_push(args, dynlist_get(t->data.node, 0));
-        expr->args = args;
+        DynList *expr_args = dynlist_create(&pointereq, &no_release);
+        dynlist_push(expr_args, dynlist_get(t->data.node, 0));
+        expr->args = expr_args;
+
+        return expr;
     default:
       printf("whoops");
       break;
