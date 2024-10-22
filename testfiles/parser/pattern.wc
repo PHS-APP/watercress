@@ -1,0 +1,9 @@
+pattern ToString is
+    func toString(self): str
+end
+pattern Printable is ToString
+    impure func print(self): void
+end
+pattern Printer is
+    impure func print(self, v: T) of T=Printable: void
+end

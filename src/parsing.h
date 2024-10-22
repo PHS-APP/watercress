@@ -686,7 +686,157 @@ static Token* transform_proc_defbod(char* treename, DynList* tokens, char kind) 
     free(g);
     return smart_create_tokenl(Group, noloc, final);
 }
-static Token* transform_proc_patbod(char* treename, DynList* tokens) {}
+static Token* transform_proc_fparam(char* treename, DynList* tokens) {
+    DynList* lst = dynlist_create(pointereq, no_release);
+    int part = 0;
+    for (int i = 0; i < tokens->len; i ++) {
+        ParserToken* tok = (ParserToken*)tokens->ptr[i];
+        if (part == 0) {
+            if (tok->type != CONTENT_WORD) {
+                transform_error("expected parameter name", tok);
+            }
+            dynlist_push(lst, smart_create_tokenl(Ident, tokloc, strmove(tok->data.word)));
+            part = 1;
+        } else if (part == 1) {
+            if (tok->type == CONTENT_SYM) {
+                if (!strcmp(tok->data.symbol, ":")) {
+                    DynList window = {.eq=pointereq,.rel=no_release,.len=(tokens->len-2),.cap=0,.ptr=(tokens->ptr+2)};
+                    if (window.len == 0) {
+                        transform_error("incomplete parameter type specification", tok);
+                    }
+                    dynlist_push(lst, transform_proc_generic(treename, &window));
+                    break;
+                }
+            }
+            transform_error("expected ':'", tok);
+        }
+    }
+    return smart_create_tokenl(Group, noloc, lst);
+}
+static Token* transform_proc_fncdef(char* treename, DynList* tokens) {
+    DynList* final = dynlist_create(pointereq, no_release);
+    DynList* buffer = dynlist_create(pointereq, no_release);
+    int part = 0;
+    int depth = 0;
+    ParserToken* held = NULL;
+    for (int i = 0; i < tokens->len; i ++) {
+        ParserToken* tok = (ParserToken*)tokens->ptr[i];
+        if (part == 0) {
+            if (tok->type != CONTENT_WORD) {
+                transform_error("expected word", tok);
+            }
+            if (!strcmp(tok->data.word, "impure")) {
+                if (final->len > 0) {
+                    transform_error("multiple modifirs disallowed", tok);
+                }
+                held = tok;
+            } else if (!strcmp(tok->data.word, "func")) {
+                dynlist_push(final, smart_create_tokenl(Keyword, tokloc, KEYWORD_FUNC));
+                if (held != NULL) {
+                    dynlist_push(final, smart_create_tokent(Mod, held, MODIF_IMPURE));
+                }
+                part = 1;
+            } else {
+                transform_error("expected keyword", tok);
+            }
+        } else if (part == 1) {
+            if (tok->type != CONTENT_WORD) {
+                transform_error("expected function name", tok);
+            }
+            dynlist_push(final, smart_create_tokenl(Ident, tokloc, strmove(tok->data.word)));
+            part = 2;
+        } else if (part == 2) {
+            if (tok->type == CONTENT_SYM) {
+                if (!strcmp(tok->data.symbol, "(")) {
+                    part = 3;
+                    depth = 1;
+                    continue;
+                }
+            }
+            transform_error("expected '('", tok);
+        } else if (part == 3) {
+            if (tok->type == CONTENT_SYM) {
+                if (!strcmp(tok->data.symbol, "(")) {
+                    depth ++;
+                } else if (!strcmp(tok->data.symbol, ")")) {
+                    depth --;
+                }
+                if (depth == 0 || (depth == 1 && !strcmp(tok->data.symbol, ","))) {
+                    dynlist_push(final, transform_proc_fparam(treename, buffer));
+                    dynlist_clear(buffer);
+                    if (depth == 0) {
+                        part = 4;
+                    }
+                    continue;
+                }
+            }
+            dynlist_push(buffer, tok);
+        } else if (part == 4) {
+            if (tok->type == CONTENT_SYM) {
+                if (!strcmp(tok->data.symbol, ":")) {
+                    part = 5;
+                    continue;
+                }
+                transform_error("expected ':'", tok);
+            }
+            if (tok->type == CONTENT_WORD) {
+                if (!strcmp(tok->data.word, "of")) {
+                    part = 6;
+                    ParserData d = {.word="##"};
+                    dynlist_push(buffer, create_parsertoken(CONTENT_WORD, -1, -1, treename, d));
+                    dynlist_push(buffer, tok);
+                    continue;
+                }
+                transform_error("expected 'of'", tok);
+            }
+            transform_error("expected ':' or 'of'", tok);
+        } else if (part == 5) {
+            if (tok->type == CONTENT_LINE) {
+                dynlist_push(final, transform_proc_generic(treename, buffer));
+                dynlist_clear(buffer);
+                break;
+            } else {
+                dynlist_push(buffer, tok);
+            }
+        } else if (part == 6) {
+            if (tok->type == CONTENT_SYM) {
+                if (!strcmp(tok->data.symbol, ":")) {
+                    Token* t = transform_proc_generic(treename, buffer);
+                    free(((Token*)t->data.group->ptr[0])->data.identifier);
+                    free(dynlist_remove(t->data.group, 0));
+                    dynlist_push(final, t);
+                    dynlist_clear(buffer);
+                    part = 5;
+                    continue;
+                }
+            }
+            dynlist_push(buffer, tok);
+        }
+    }
+    dynlist_destroy(buffer);
+    return smart_create_tokenl(Node, noloc, final);
+}
+static Token* transform_proc_patbod(char* treename, DynList* tokens) {
+    DynList* final = dynlist_create(pointereq, no_release);
+    DynList* buffer = dynlist_create(pointereq, no_release);
+    for (int i = 0; i < tokens->len; i ++) {
+        ParserToken* tok = (ParserToken*)tokens->ptr[i];
+        if (tok->type == CONTENT_LINE) {
+            if (buffer->len > 0) {
+                dynlist_push(final, transform_proc_fncdef(treename, buffer));
+                dynlist_clear(buffer);
+            }
+        } else {
+            dynlist_push(buffer, tok);
+        }
+    }
+    if (buffer->len > 0) {
+        dynlist_push(final, transform_proc_fncdef(treename, buffer));
+        dynlist_clear(buffer);
+    }
+    dynlist_destroy(buffer);
+    return smart_create_tokenl(Group, noloc, final);
+}
 
 static Token* transform_parser_tree(char* treename, DynList* partree, LinkedList* tofollow) {
     Token* semroot = smart_create_token(Nmsp, -1, -1, treename, treename);
@@ -914,13 +1064,6 @@ static Token* transform_parser_tree(char* treename, DynList* partree, LinkedList
                         dynlist_push(semroot->data.namespace.childnode, smart_create_tokenl(Node, noloc, dynlist_reown(buildnode)));
                         continue;
                     } else {
-                        // if (tokbufy->len == 1) {
-                        //     Token* g = smart_create_tokenl(Group, noloc, dynlist_create(pointereq, no_release));
-                        //     dynlist_push(g->data.group, smart_create_tokent(Ident, tokbufy->ptr[0], strmove(((ParserToken*)tokbufy->ptr[0])->data.word)));
-                        //     dynlist_push(buildnode, g);
-                        // } else {
-                        //     dynlist_push(buildnode, transform_process_generics(treename, tokbufy, 1));
-                        // }
                         dynlist_push(buildnode, transform_proc_generic(treename, tokbufy));
                         dynlist_push(semroot->data.namespace.childnode, smart_create_tokenl(Node, noloc, dynlist_reown(buildnode)));
                         dynlist_clear(tokbufx);
@@ -937,7 +1080,7 @@ static Token* transform_parser_tree(char* treename, DynList* partree, LinkedList
                         if (stmtkind == 0) {
                             dynlist_push(pushto, transform_proc_defbod(treename, tokbufy, typetype));
                         } else {
-                            dynlist_push(pushto, transform_proc_patbod(treename, tokbufy));
+                            dynlist_push(buildnode, transform_proc_patbod(treename, tokbufy));
                         }
                         typetype = 0;
                         dynlist_clear(tokbufy);
