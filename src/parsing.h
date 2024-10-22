@@ -455,73 +455,7 @@ static Token* _smart_create_token(TokenType type, long line, long column, char* 
 
 #define SEC_FUNC_NONE 0
 
-static Token* transform_process_generics(char* treename, DynList* tokens, char flag) {
-    DynList* final = dynlist_create(pointereq, no_release);
-    int part = 0;
-    int s, e;
-    int depth = 0;
-    for (int i = 0; i < tokens->len; i ++) {
-        #define tokloc tok->line, tok->column, tok->file
-        #define noloc -1, -1, treename
-        ParserToken* tok = (ParserToken*)tokens->ptr[i];
-        if (part == 0) {
-            if (tok->type != CONTENT_WORD) {
-                transform_error("expected name", tok);
-            }
-            Token* g = smart_create_tokenl(Group, noloc, dynlist_create(pointereq, no_release));
-            dynlist_push(g->data.group, smart_create_tokenl(Ident, tokloc, strmove(tok->data.word)));
-            dynlist_push(final, g);
-            part = 1;
-        } else if (part == 1) {
-            if (tok->type != CONTENT_SYM && tok->type != CONTENT_WORD) {
-                transform_error("expected keyword or symbol", tok);
-            }
-            if (tok->type == CONTENT_WORD) {
-                if (strcmp(tok->data.word, "and")) {
-                    transform_error("expected 'and'", tok);
-                }
-                part = 0;
-            }
-            if (flag) {
-                transform_error("cannot specify restrictions in generic specifier", tok);
-            }
-            if (strcmp(tok->data.symbol, "=")) {
-                transform_error("expected '='", tok);
-            }
-            part = 2;
-            s = i+1;
-        } else if (part == 2) {
-            if (tok->type == CONTENT_SYM) {
-                if (!strcmp(tok->data.symbol, "(")) {
-                    depth += 1;
-                }
-                if (!strcmp(tok->data.symbol, ")")) {
-                    depth -= 1;
-                }
-            }
-            if (depth == 0) {
-                e = i;
-                if (e == s) {
-                    transform_error("expected specifying expression", tok);
-                }
-                DynList window = {.cap=0,.len=(e-s),.eq=pointereq,.rel=no_release,.ptr=(tokens->ptr+s)};
-                dynlist_push(((Token*)(final->ptr[final->len-1]))->data.group, transform_process_generics(treename, &window, 1));
-                part = 3;
-            }
-        } else if (part == 3) {
-            if (tok->type == CONTENT_WORD) {
-                if (!strcmp(tok->data.word, "and")) {
-                    part = 0;
-                    continue;
-                }
-            }
-            transform_error("expected 'and'", tok);
-        }
-        #undef tokloc
-        #undef noloc
-    }
-    return smart_create_token(Group, -1, -1, treename, final);
-}
+void print_semantic_token(Token*, char*);
 
 #define tokloc tok->line, tok->column, tok->file
 #define noloc -1, -1, treename
@@ -530,9 +464,19 @@ static Token* transform_proc_generic(char* treename, DynList* tokens) {
     int part = 0;
     int depth = 0;
     int s, e;
+    ParserToken* held;
     for (int i = 0; i < tokens->len; i ++) {
         ParserToken* tok = (ParserToken*)tokens->ptr[i];
+        parsertoken_print_condensed(tok);
         if (part == 0) {
+            if (tok->type == CONTENT_SYM) {
+                if (!strcmp(tok->data.symbol, "[")) {
+                    depth = 1;
+                    part = 6;
+                    held = tok;
+                    continue;
+                }
+            }
             if (tok->type != CONTENT_WORD) {
                 transform_error("expected type name", tok);
             }
@@ -603,9 +547,31 @@ static Token* transform_proc_generic(char* treename, DynList* tokens) {
                     part = 3;
                 }
             }
+        } else if (part == 6) {
+            if (tok->type == CONTENT_SYM) {
+                if (!strcmp(tok->data.symbol, "[")) {
+                    depth ++;
+                }
+                if (!strcmp(tok->data.symbol, "]")) {
+                    depth --;
+                }
+                if (depth == 0) {
+                    e = i;
+                    if (s == e) {
+                        transform_error("empty list expression", tok);
+                    }
+                    DynList window = {.eq=pointereq,.rel=no_release,.cap=0,.len=(e-s),.ptr=(tokens->ptr+s)};
+                    dynlist_push(final, transform_proc_generic(treename, &window));
+                    dynlist_push(final, smart_create_tokent(Mod, held, MODIF_ARRAY));
+                    break;
+                }
+            }
         }
     }
-    return smart_create_token(Group, -1, -1, treename, final);
+    printf("\n");
+    Token* g = smart_create_token(Group, -1, -1, treename, final);
+    print_semantic_token(g, "");
+    return g;
 }
 
 static Token* transform_proc_defbod(char* treename, DynList* tokens, char kind) {

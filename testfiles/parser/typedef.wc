@@ -2,7 +2,7 @@ typedef X is u8
 typedef u8List is List of T=u8
 
 typedef List of T is prod
-    internal: T
+    internal: [T]
 end
 typedef X is prod
     a: u8

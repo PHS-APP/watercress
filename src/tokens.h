@@ -23,10 +23,11 @@
 #define KEYWORD_PATTERN 17
 
 #define MODIF_IMPURE 0
+#define MODIF_ARRAY  1
 
 char* TYPENAMEMAP[] = {"Node","Nmsp","Generic","Ident","Bool","Int","Float","Keyword","Operator","Char","String","Group","Stmt","Sep","Type","Mod","Asm","Meta"};
 char* KEYWORDMAP[] = {"func", "typedef", "sum", "prod", "return", "is", "end", "if", "else", "for", "while", "loop", "use", "of", "do", "break", "continue", "pattern"};
-char* MODIFMAP[] = {"impure"};
+char* MODIFMAP[] = {"impure", "array"};
 
 typedef enum TokenType {
     Node, // groups tokens together to make interacting with the AST easier
