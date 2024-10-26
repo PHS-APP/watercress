@@ -60,7 +60,8 @@ typedef struct NmspData {char* name;DynList* childnode;} NmspData;
 typedef struct GeniData {char* name;DynList* restrictions;} GeniData;
 typedef union TokenData {
     char *string, *identifier, *type;
-    char character, boolean, operator;
+    char boolean, operator;
+    int character;
     ushort keyword, modifier;
     long integer;
     double floating;
@@ -72,6 +73,7 @@ typedef union TokenData {
 } TokenData;
 
 typedef struct Token {
+    ubyte chk;
     TokenType type;
     long line, column;
     char* file;
@@ -80,6 +82,7 @@ typedef struct Token {
 
 Token* token_create(TokenType type, long line, long column, char* file, TokenData data) {
     Token* tok = (Token*)malloc(sizeof(Token));
+    tok->chk = 1;
     tok->type = type;
     tok->line = line;
     tok->column = column;
@@ -99,7 +102,16 @@ void token_print(Token* tok) {
         case Float:printf("value: %f\n", tok->data.floating);break;
         case Keyword:printf("keyword: %s\n", KEYWORDMAP[tok->data.keyword]);break;
         case Operator:printf("operator: %c\n", tok->data.operator);break;
-        case Char:printf("character: %c\n", tok->data.character);break;
+        case Char:
+            printf("character: ");
+            for (int i = 0; i < 4; i ++) {
+                int v = (tok->data.character>>((3-i)*8))&0xff;
+                if (v != 0 || i == 3) {
+                    printf("%c", (char)v);
+                }
+            }
+            printf("\n");
+            break;
         case String:printf("value: \"%s\"\n", tok->data.string);break;
         case Type:printf("value: %s\n", tok->data.type);break;
         case Mod:printf("modid: %s\n", MODIFMAP[tok->data.modifier]);break;

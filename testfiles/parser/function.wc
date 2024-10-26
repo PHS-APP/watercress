@@ -1,0 +1,22 @@
+func theAnswer(): u8
+    return 42
+end
+
+func theQuestion(): str
+    return "Arthur hasn't let us find out yet"
+end
+
+impure func x(): u8
+    j = 0
+    print(j)
+    return 0
+end
+
+impure func main(): s8
+    x:s8=(1+1)*2
+    //y(0)+y(0)
+    //print(y(0)+y(0))
+    print("The answer is: " + theAnswer())
+    print("The question is: " + theQuestion())
+    return 0
+end

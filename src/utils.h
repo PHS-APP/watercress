@@ -5,6 +5,42 @@
 #include <string.h>
 #include "./types.h"
 
+// whether to print markers
+char _DBG_MARKER = 0;
+#define debugf(enable, ...) if(enable)printf(__VA_ARGS__)
+#define marker(...) debugf(_DBG_MARKER, "\nMARKER[%d (%s){%s}]: ", __LINE__, __func__, __FILE__);debugf(_DBG_MARKER, __VA_ARGS__);debugf(_DBG_MARKER, "\n")
+
+// data structure tracing bit fields
+static char _DBG_DATASTRUCTURE_BASE = 0;
+static char _DBG_DATASTRUCTURE_MASK = 127;
+
+#define DATASTRUCTDBG_LINKEDLIST 1
+#define DATASTRUCTDBG_DYNLIST 2
+#define DATASTRUCTDBG_HASHMAP 4
+
+// DO NOT USE THIS, should only be called based on CLI args, this has already been handled
+void datastruct_debug_enable_base(char which) {
+    _DBG_DATASTRUCTURE_BASE |= which;
+}
+// DO NOT USE THIS, should only be called based on CLI args, this has already been handled
+void datastruct_debug_disable_base(char which) {
+    _DBG_DATASTRUCTURE_BASE &= ~which;
+}
+// allows trace printing that is known to be irrelevant in ALL CASES to be hidden
+// WARNING, only use for code which is KNOWN AND TESTED to function properly in ALL cases
+void datastruct_debug_enable_mask(char which) {
+    _DBG_DATASTRUCTURE_MASK |= which;
+}
+// WARNING, only use for code which is KNOWN AND TESTED to function properly in ALL cases
+void datastruct_debug_disable_mask(char which) {
+    _DBG_DATASTRUCTURE_MASK &= ~which;
+}
+
+#define _DBG_DATASTRUCTURE (_DBG_DATASTRUCTURE_BASE&_DBG_DATASTRUCTURE_MASK)
+#define LINKEDLIST_DEBUG (_DBG_DATASTRUCTURE&1)
+#define DYNLIST_DEBUG (_DBG_DATASTRUCTURE&2)
+#define HASHMAP_DEBUG (_DBG_DATASTRUCTURE&4)
+
 void _todo(ulong line, const char* file, const char* func) {
     printf("TODO ENCOUNTERED (line %lu of file '%s' function '%s')\n", line, file, func);
     exit(1);
@@ -119,29 +155,44 @@ uint linkedlist_indexof(LinkedList* list, void* value) {
 /*
 creates a new node with the given data pointer and appends it to the list
 */
-void linkedlist_push(LinkedList* list, void* value) {
+void _linkedlist_push(LinkedList* list, void* value, long line, const char* func, const char* file) {
+    debugf(LINKEDLIST_DEBUG, "LLPU[%ld (%s){%s}]: [%d] (%p) ", line, func, file, list->size, value);
+    // if (!LINKEDLIST_DEBUG)printf("LLPU[%ld (%s){%s}]: [%d] (%p) ", line, func, file, list->size, value);
     LinkedListNode* node = linkedlist_init_node(list, value);
     if (list->head == 0) {
+        debugf(LINKEDLIST_DEBUG, "NPL");
+        // if (!LINKEDLIST_DEBUG)printf("NPL");
         list->head = node;
         list->tail = node;
     } else {
+        debugf(LINKEDLIST_DEBUG, "YPL=(%p)", (void*)list->tail);
+        // if (!LINKEDLIST_DEBUG)printf("YPL=(%p)", (void*)list->tail);
         list->tail->next = node;
         node->prev = list->tail;
         list->tail = node;
     }
+    debugf(LINKEDLIST_DEBUG, " CH=(%p) CT=(%p)\n", (void*)list->head, (void*)list->tail);
+    // if (!LINKEDLIST_DEBUG)printf(" CH=(%p) CT=(%p)\n", (void*)list->head, (void*)list->tail);
     list->size ++;
 }
+#define linkedlist_push(list, value) _linkedlist_push(list, value, __LINE__, __func__, __FILE__);
 /*
 pops the tail and returns the data pointer
 returns zero if the list was empty
 */
-void* linkedlist_pop(LinkedList* list) {
+void* _linkedlist_pop(LinkedList* list, long line, const char* func, const char* file) {
+    debugf(LINKEDLIST_DEBUG, "LLPO[%ld (%s){%s}]: [%d] ", line, func, file, list->size);
+    // if (!LINKEDLIST_DEBUG)printf("LLPO[%ld (%s){%s}]: [%d] ", line, func, file, list->size);
     if (list->tail == 0) {
         return 0;
     }
     list->size --;
     LinkedListNode* prev = list->tail->prev;
+    debugf(LINKEDLIST_DEBUG, "T=(%p) TP=(%p) ", (void*)list->tail, (void*)prev);
+    // if (!LINKEDLIST_DEBUG)printf("T=(%p) TP=(%p) ", (void*)list->tail, (void*)prev);
     void* data = list->tail->data;
+    debugf(LINKEDLIST_DEBUG, "D=(%p)\n", data);
+    // if (!LINKEDLIST_DEBUG)printf("D=(%p)\n", data);
     list->tail = prev;
     if (prev == 0) {
         list->head = 0;
@@ -149,6 +200,7 @@ void* linkedlist_pop(LinkedList* list) {
     free(prev);
     return data;
 }
+#define linkedlist_pop(list) _linkedlist_pop(list, __LINE__, __func__, __FILE__)
 /*
 returns the node at the specified index
 returns zero if the index was out of bounds
@@ -295,16 +347,23 @@ void* linkedlist_remove_prev(LinkedList* list, LinkedListNode* node) {
 removes the node at the specified index and returns its data pointer
 returns zero if the index was out of bounds
 */
-void* linkedlist_remove_at(LinkedList* list, uint index) {
+void* _linkedlist_remove_at(LinkedList* list, uint index, long line, const char* func, const char* file) {
+    debugf(LINKEDLIST_DEBUG, "LLRA[%ld (%s){%s}]: [%d] I=(%d)", line, func, file, list->size, index);
+    // if (!LINKEDLIST_DEBUG)printf("LLRA[%ld (%s){%s}]: [%d] I=(%d)", line, func, file, list->size, index);
     if (index >= list->size) {
         return 0;
     }
     if (index == list->size-1) {
+        debugf(LINKEDLIST_DEBUG, "\n");
+        // if (!LINKEDLIST_DEBUG)printf("\n");
         return linkedlist_pop(list);
     }
     LinkedListNode* cnode = linkedlist_get(list, index+1);
+    debugf(LINKEDLIST_DEBUG, " GN=(%p)\n", (void*)cnode);
+    // if (!LINKEDLIST_DEBUG)printf(" GN=(%p)\n", (void*)cnode);
     return linkedlist_remove_prev(list, cnode);
 }
+#define linkedlist_remove_at(list, index) _linkedlist_remove_at(list, index, __LINE__, __func__, __FILE__)
 
 typedef void(*ItemRel)(void*);
 
@@ -749,5 +808,7 @@ int inteq(void *a, void *b) {
 ulong ident(void *a) {
     return (ulong)a;
 }
+
+#undef _DBG_DATASTRUCTURE
 
 #endif
