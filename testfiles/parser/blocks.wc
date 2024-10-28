@@ -1,0 +1,10 @@
+impure func main(): s8
+    if x == 1
+        print("HI")
+    else if x == 2
+        print("SEE YA")
+    else
+        print("BYE")
+    end
+    return 0
+end
