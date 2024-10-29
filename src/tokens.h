@@ -21,12 +21,13 @@
 #define KEYWORD_BREAK 15
 #define KEYWORD_CONTINUE 16
 #define KEYWORD_PATTERN 17
+#define KEYWORD_FOREVER 18
 
 #define MODIF_IMPURE 0
 #define MODIF_ARRAY  1
 
 char* TYPENAMEMAP[] = {"Node","Nmsp","Generic","Ident","Bool","Int","Float","Keyword","Operator","Char","String","Group","Stmt","Sep","Type","Mod","Asm","Meta"};
-char* KEYWORDMAP[] = {"func", "typedef", "sum", "prod", "return", "is", "end", "if", "else", "for", "while", "loop", "use", "of", "do", "break", "continue", "pattern"};
+char* KEYWORDMAP[] = {"func", "typedef", "sum", "prod", "return", "is", "end", "if", "else", "for", "while", "loop", "use", "of", "do", "break", "continue", "pattern", "forever"};
 char* MODIFMAP[] = {"impure", "array"};
 
 typedef enum TokenType {
