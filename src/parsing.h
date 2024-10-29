@@ -1308,7 +1308,7 @@ static Token* transform_proc_fncbod(char* treename, DynList* tokens) {
     DynList* final = dynlist_create(pointereq, no_release);
     DynList* buffer = dynlist_create(pointereq, no_release);
     DynList* build = dynlist_create(pointereq, no_release);
-    DynList* doblankdepths = dynlist_create(litinteq, no_release);
+    DynList* doblankdepths = dynlist_create(pointereq, no_release);
     int part = 0;
     int kind = 0;
     int alts = 0;
