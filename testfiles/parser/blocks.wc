@@ -20,3 +20,10 @@ impure func main(): s8
     end
     return 0
 end
+
+impure func matchTest(sig: Signal): void
+    match sig
+        Normal => print("NORMAL")
+        Error(c) => print("error" + c)
+    end
+end

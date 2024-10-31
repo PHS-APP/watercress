@@ -378,6 +378,9 @@ static int check_symbol_continuity(StrBuf* buf, char new) {
                 default:return 0;
             }
         }
+        if (buf->len == 1 && buf->ptr[0] == '=') {
+            if (new == '>') return 1;
+        }
         if (buf->len == 1 && new == buf->ptr[0]) {
             switch (new) { // ++ -- ** >> << || &&
                 case'+':case'-':case'*':case'>':case'<':case'|':case'&':
@@ -830,7 +833,7 @@ static Token* transform_proc_patbod(char* treename, DynList* tokens) {
 }
 static char transform_is_fb_depth_increaser(ParserToken* tok) {
     char* w = tok->data.word;
-    if (!(strcmp(w, "if") && strcmp(w, "for") && strcmp(w, "while") && strcmp(w, "do"))) {
+    if (!(strcmp(w, "if") && strcmp(w, "for") && strcmp(w, "while") && strcmp(w, "do") && strcmp(w, "match"))) {
         return 1;
     }
     return 0;
@@ -1303,6 +1306,7 @@ static Token* clone_name(Token* name) {
     TokenData d = {.group=intern};
     return token_create(Group, name->line, name->column, name->file, d);
 }
+static Token* transform_proc_match(char*, DynList*);
 static Token* transform_proc_fncbod(char* treename, DynList* tokens) {
     // printf("\n");
     DynList* final = dynlist_create(pointereq, no_release);
@@ -1313,6 +1317,7 @@ static Token* transform_proc_fncbod(char* treename, DynList* tokens) {
     int kind = 0;
     int alts = 0;
     int s, e, depth;
+    char might = 0;
     for (int i = 0; i < tokens->len; i ++) {
         ParserToken* tok = (ParserToken*)tokens->ptr[i];
         // parsertoken_print_condensed(tok);
@@ -1345,6 +1350,14 @@ static Token* transform_proc_fncbod(char* treename, DynList* tokens) {
                     part = 2;
                     alts = 0;
                     dynlist_push(build, smart_create_tokenl(Keyword, tokloc, KEYWORD_FOR));
+                } else if (!strcmp(tok->data.word, "match")) {
+                    kind = 5;
+                    part = 2;
+                    dynlist_push(build, smart_create_tokenl(Keyword, tokloc, KEYWORD_MATCH));
+                } else if (!strcmp(tok->data.word, "continue")) {
+                    dynlist_push(build, smart_create_tokenl(Keyword, tokloc, KEYWORD_CONTINUE));
+                } else if (!strcmp(tok->data.word, "break")) {
+                    dynlist_push(build, smart_create_tokenl(Keyword, tokloc, KEYWORD_BREAK));
                 } else {
                     dynlist_push(buffer, tok);
                     part = 1;
@@ -1441,7 +1454,7 @@ static Token* transform_proc_fncbod(char* treename, DynList* tokens) {
         } else if (part == 2) {
             if (tok->type == CONTENT_LINE) {
                 // dynlist_push(build, transform_proc_condition(treename, buffer));
-                if (kind == 0 || kind == 2) {
+                if (kind == 0 || kind == 2 || kind == 5) {
                     dynlist_push(build, transform_proc_expression(treename, buffer));
                 } else if (kind == 1) {
                     if (buffer->len > 0) {
@@ -1567,7 +1580,11 @@ static Token* transform_proc_fncbod(char* treename, DynList* tokens) {
                     // printf("%d,%d,%d\n", kind, s, e);
                     if (s != e) {
                         DynList window = {.eq=pointereq,.rel=no_release,.cap=0,.len=(e-s),.ptr=tokens->ptr+s};
-                        dynlist_push(build, transform_proc_fncbod(treename, &window));
+                        if (kind == 5) {
+                            dynlist_push(build, transform_proc_match(treename, &window));
+                        } else {
+                            dynlist_push(build, transform_proc_fncbod(treename, &window));
+                        }
                     } else {
                         dynlist_push(build, smart_create_tokenl(Group, noloc, dynlist_create(pointereq, no_release)));
                     }
@@ -1581,11 +1598,105 @@ static Token* transform_proc_fncbod(char* treename, DynList* tokens) {
                         goto loop_head;
                     }
                 }
+            } else if (tok->type == CONTENT_SYM) {
+                if (!strcmp(tok->data.symbol, "=>")) {
+                    might = 1;
+                }
+            } else if (tok->type == CONTENT_LINE) {
+                if (might) {
+                    depth ++;
+                }
             }
+            might = 0;
         }
     }
     dynlist_destroy(buffer);
     dynlist_destroy(build);
+    return smart_create_tokenl(Group, noloc, final);
+}
+
+static Token* transform_proc_match(char* treename, DynList* tokens) {
+    DynList* final = dynlist_create(pointereq, no_release);
+    DynList* build = dynlist_create(pointereq, no_release);
+    DynList* buffer = dynlist_create(pointereq, no_release);
+    DynList* doblankdepths = dynlist_create(pointereq, no_release);
+    int part = 0;
+    int depth = 0;
+    char might = 0;
+    for (int i = 0; i < tokens->len; i ++) {
+        ParserToken* tok = (ParserToken*)tokens->ptr[i];
+        if (part == 0) {
+            if (tok->type == CONTENT_SYM) {
+                if (!strcmp(tok->data.symbol, "=>")) {
+                    part = 1;
+                    dynlist_push(build, transform_proc_expression(treename, buffer));
+                    dynlist_clear(buffer);
+                    continue;
+                }
+            }
+            dynlist_push(buffer, tok);
+        } else if (part == 1) {
+            if (tok->type == CONTENT_LINE) {
+                depth = 1;
+                part = 3;
+            } else {
+                part = 2;
+                dynlist_push(buffer, tok);
+            }
+        } else if (part == 2) {
+            dynlist_push(buffer, tok);
+            if (tok->type == CONTENT_LINE) {
+                part = 0;
+                // for (int j = 0; j < buffer->len; j ++) parsertoken_print_condensed((ParserToken*)buffer->ptr[j]);
+                // putchar('\n');
+                dynlist_push(build, transform_proc_fncbod(treename, buffer));
+                dynlist_clear(buffer);
+                dynlist_push(final, smart_create_tokenl(Node, noloc, dynlist_reown(build)));
+                continue;
+            }
+        } else if (part == 3) {
+            if (tok->type == CONTENT_WORD) {
+                if (transform_is_fb_depth_increaser(tok)) {
+                    if (!strcmp(tok->data.word, "do")) {
+                        dynlist_push(doblankdepths, (void*)((long)depth));
+                    } else if (!strcmp(tok->data.word, "while")) {
+                        if (dynlist_indexof(doblankdepths, (void*)((long)depth))) {
+                            dynlist_pop(doblankdepths);
+                            depth --;
+                            goto post_depth_update;
+                        }
+                    }
+                    depth ++;
+                } else if (!strcmp(tok->data.word, "end")) {
+                    depth --;
+                }else if (!strcmp(tok->data.word, "forever")) {
+                    dynlist_pop(doblankdepths);
+                    depth --;
+                }
+                post_depth_update:
+                if (depth == 0) {
+                    part = 0;
+                    dynlist_push(build, transform_proc_fncbod(treename, buffer));
+                    dynlist_clear(buffer);
+                    dynlist_push(final, smart_create_tokenl(Node, noloc, dynlist_reown(build)));
+                    continue;
+                }
+            } else if (tok->type == CONTENT_SYM) {
+                if (!strcmp(tok->data.symbol, "=>")) {
+                    might = 1;
+                }
+            } else if (tok->type == CONTENT_LINE) {
+                if (might) {
+                    depth ++;
+                }
+            }
+            might = 0;
+            dynlist_push(buffer, tok);
+        }
+    }
+    dynlist_destroy(buffer);
+    dynlist_destroy(build);
+    dynlist_destroy(doblankdepths);
     return smart_create_tokenl(Group, noloc, final);
 }
 
@@ -1600,6 +1711,7 @@ static Token* transform_parser_tree(char* treename, DynList* partree, LinkedList
     int stmtkind = 0;
     int typetype = 0;
     int depth = 0;
+    char might = 0;
     DynList* tokbufx = dynlist_create(pointereq, no_release);
     DynList* tokbufy = dynlist_create(pointereq, no_release);
     ParserToken *held;
@@ -1893,7 +2005,16 @@ static Token* transform_parser_tree(char* treename, DynList* partree, LinkedList
                     }
                 }
                 dynlist_push(tokbufx, tok);
+            } else if (tok->type == CONTENT_SYM) {
+                if (!strcmp(tok->data.symbol, "=>")) {
+                    might = 1;
+                }
+            } else if (tok->type == CONTENT_LINE) {
+                if (might) {
+                    depth ++;
+                }
             }
+            might = 0;
         }
         loop_continue:
         continue;
