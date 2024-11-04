@@ -633,6 +633,10 @@ void hashmap_set(HashMap *map, void *key, void *value) {
 
     ulong a = (map->h1)(key);
     ulong b = (map->h2)(key);
+    if (b % map->size == 0) {
+        // todo: make implementation better to deal with 0
+        b = 1;
+    }
 
     for (int i = 0; i < map->entries+1; i++) {
         ulong index = (a+b*i) % (map->size);
@@ -655,6 +659,9 @@ void hashmap_set(HashMap *map, void *key, void *value) {
 void *hashmap_get(HashMap *map, void *key) {
     ulong a = (map->h1)(key);
     ulong b = (map->h2)(key);
+    if (b % map->size == 0) {
+        b = 1;
+    }
     for (int i = 0; i < map->entries; i++) {
         ulong index = (a+b*i) % (map->size);
         if (map->table[index].key == NULL) {
@@ -677,7 +684,8 @@ void hashmap_expand(HashMap *map) {
         map->table[i].key = NULL;
     }
 
-    
+    // put all entries back in
+    map->entries = 0;
     for (int i = 0; i < old_size; i++) {
         if (old_table[i].key != NULL) {
             hashmap_set(map, old_table[i].key, old_table[i].value);

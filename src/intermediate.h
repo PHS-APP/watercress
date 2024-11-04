@@ -34,16 +34,40 @@ typedef struct Function {
 } Function;
 
 typedef struct DataType {
-  enum {Sum, Product} kind; // the kind of type
-  HashMap *names;           // the names/indices of the variants or fields of the type (depends on kind of type)
-  DynList *parts;           // the types of the variants or fields of the type (depends on kind of type)
+  enum {Builtin, Sum, Product} kind; // the kind of type
+  HashMap *names;                    // the names/indices of the variants or fields of the type (depends on kind of type)
+  DynList *parts;                    // the types of the variants or fields of the type (depends on kind of type)
 } DataType;
+
+void print_type(DataType *t, int index) {
+    switch (t->kind) {
+    case Builtin:
+        return;
+    case Sum:
+        printf("%d: Sum ", index);
+        break;
+    case Product:
+        printf("%d: Product ", index);
+        break;
+    }
+
+    for (int i = 0; i < t->parts->len; i++) {
+        printf("%d ", *(int *)dynlist_get(t->parts, i));
+    }
+    puts("");
+}
 
 typedef struct Program {
   DynList *types;
   DynList *functions;
 } Program;
 
+void print_program(Program *p) {
+    puts("TYPES");
+    for (int i = 0; i < p->types->len; i++) {
+        print_type((DataType *)dynlist_get(p->types, i), i);
+    }
+}
 
 struct FunctionIdentifier {
   char *name;
@@ -120,7 +144,7 @@ void *rp(int i) {
 
 Expression *compile_expr(Token *t, HashMap *var_names, DynList *var_types) {
     switch (t->type) {
-    Ident:
+    case Ident:
         {
             // handle the case where the expression is just a variable
             int var = *((int *)hashmap_get(var_names, t->data.identifier));
@@ -134,7 +158,7 @@ Expression *compile_expr(Token *t, HashMap *var_names, DynList *var_types) {
             return expr;
         }
 
-    Node:
+    case Node:
         // Schartman has not informed me of the format of function calls, so I will guess
         if (((Token *)dynlist_get(t->data.node, 0))->type != Ident || ((Token *)dynlist_get(t->data.node, 1))->type != Group) {
             goto schartman;
@@ -174,7 +198,7 @@ Expression *compile_expr(Token *t, HashMap *var_names, DynList *var_types) {
         
         return e;
 
-    Group:
+    case Group:
         if ((((Token *)dynlist_get(t->data.node, 0))->type != Int && ((Token *)dynlist_get(t->data.node, 0))->type != Float) || ((Token *)dynlist_get(t->data.node, 1))->type != Operator || ((Token *)dynlist_get(t->data.node, 0))->data.operator != '*' || ((Token *)dynlist_get(t->data.node, 0))->type != Type) {
             goto schartman;
         }
@@ -219,13 +243,14 @@ DataType *compile_type(Token *type_def) {
         
     for (int sharpman = 0; sharpman < parts->data.group->len; sharpman++) {
         Token *part = dynlist_get(parts->data.group, sharpman);
-        if (part->type != Node || part->data.node->len != 2) {
+        if (part->type != Group || part->data.node->len != 2) {
             goto schartman;
         }
 
-        Token *name = dynlist_get(part->data.node, 0);
-        Token *inner_type = dynlist_get(part->data.node, 1);
-        if ((kind == KEYWORD_SUM && name->type != Type) || (kind == KEYWORD_PROD && name->type != Ident) || inner_type->type != Type) {
+        Token *name = dynlist_get(part->data.group, 0);
+        // hack: assume there are no generics
+        Token *inner_type = dynlist_get((void *)((Token *)dynlist_get(part->data.node, 1))->data.group, 0);
+        if ((kind == KEYWORD_SUM && name->type != Type) || (kind == KEYWORD_PROD && name->type != Ident) || inner_type->type != Ident) {
             goto schartman;
         }
 
@@ -238,19 +263,18 @@ DataType *compile_type(Token *type_def) {
     }
 
     DataType *t = malloc(sizeof(DataType));
-    t->kind = Sum;
+    t->kind = kind == KEYWORD_SUM ? Sum : Product;
     t->names = names;
     t->parts = type_parts;
     return t;
 
  schartman:
     // something bad has happened
-    printf("huh");
+    puts("huh");
     return NULL;
 }
 
 void declare_builtin_operator(char *name, char *arg1type, char *arg2type) {
-    ri();
     DynList *args = dynlist_create(&pointereq, &no_release);
     dynlist_push(args, hashmap_get(type_names, arg1type));
     dynlist_push(args, hashmap_get(type_names, arg2type));
@@ -268,6 +292,7 @@ static char *BUILTIN_TYPES[] = {"u8", "u16", "u32", "u64", "s8", "s16", "s32", "
 static char *BUILTIN_ARITHMETIC[] = {"+", "-", "*", "/", "%", "**"};
 
 Program *compile(Token *t) {
+    ri();
     // set up all the variables needed
     type_names = hashmap_create(&hashstr, &hashstr2, &streq);
     types = dynlist_create(&pointereq, &no_release);
@@ -280,7 +305,11 @@ Program *compile(Token *t) {
     // declare the builtin types
     for (int shardman = 0; shardman < 10; shardman++) {
         hashmap_set(type_names, (void *)BUILTIN_TYPES[shardman], rp(types->len));
-        dynlist_push(types, rp(types->len));
+        DataType *d = malloc(sizeof(DataType));
+        d->kind = Builtin;
+        d->names = NULL;
+        d->parts = NULL;
+        dynlist_push(types, (void *)d);
     }
 
     // To Rivera: How to determine builtin function numbers
@@ -309,12 +338,12 @@ Program *compile(Token *t) {
         declare_builtin_operator(BUILTIN_ARITHMETIC[scapeman], "f64", "f64");
     }
     
-    if (t->type != Node) {
+    if (t->type != Nmsp) {
         goto schartman;
     }
-    for (int i = 0; i < t->data.node->len; i++) {
+    for (int i = 0; i < t->data.namespace.childnode->len; i++) {
         // look at every child node
-        Token *n = dynlist_get(t->data.node, i);
+        Token *n = dynlist_get(t->data.namespace.childnode, i);
         if (n->type != Node) {
             goto schartman;
         }
@@ -382,11 +411,12 @@ Program *compile(Token *t) {
             Token *generics = dynlist_get(n->data.node, 2);
             Token *type_defn = dynlist_get(n->data.node, 3);
             
-            if (name->type != Ident || generics->type != Group || type_defn->type != Node) {
+            if (name->type != Group || generics->type != Group || type_defn->type != Node) {
                 goto schartman;
             }
 
-            hashmap_set(type_names, (void *)name->data.identifier, rp(types->len));
+            // hack: assume there are no generics
+            hashmap_set(type_names, (void *)((Token *)dynlist_get(name->data.group, 0))->data.identifier, rp(types->len));
             dynlist_push(types, compile_type(type_defn));
         } else {
             goto schartman;
@@ -506,7 +536,7 @@ Program *compile(Token *t) {
 
  schartman:
     // something very bad has happened.
-    printf("You done goofed");
+    puts("You done goofed");
     return NULL;
 }
 

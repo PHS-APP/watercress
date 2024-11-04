@@ -38,6 +38,14 @@ int main(int argc, char** argv) {
         if (!strcmp(argv[1], "--test-parsing=stokens")) {
             parser_test_stokens(argv[argc-1]);
         }
+        if (!strcmp(argv[1], "--test-intermediate")) {
+            LinkedList* tofollow = LINKED_OBJECTS;
+            Token* output = parse_file(argv[argc-1], 0, tofollow);
+            linkedlist_destroy(tofollow);
+
+            Program *p = compile(output);
+            print_program(p);
+        }
     }
     
     /* HashMap *map = hashmap_create(&hashstr, &hashstr2, &streq); */
