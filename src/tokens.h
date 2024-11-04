@@ -21,12 +21,15 @@
 #define KEYWORD_BREAK 15
 #define KEYWORD_CONTINUE 16
 #define KEYWORD_PATTERN 17
+#define KEYWORD_FOREVER 18
+#define KEYWORD_MATCH 19
 
 #define MODIF_IMPURE 0
+#define MODIF_ARRAY  1
 
 char* TYPENAMEMAP[] = {"Node","Nmsp","Generic","Ident","Bool","Int","Float","Keyword","Operator","Char","String","Group","Stmt","Sep","Type","Mod","Asm","Meta"};
-char* KEYWORDMAP[] = {"func", "typedef", "sum", "prod", "return", "is", "end", "if", "else", "for", "while", "loop", "use", "of", "do", "break", "continue", "pattern"};
-char* MODIFMAP[] = {"impure"};
+char* KEYWORDMAP[] = {"func", "typedef", "sum", "prod", "return", "is", "end", "if", "else", "for", "while", "loop", "use", "of", "do", "break", "continue", "pattern", "forever", "match"};
+char* MODIFMAP[] = {"impure", "array"};
 
 typedef enum TokenType {
     Node, // groups tokens together to make interacting with the AST easier
@@ -59,7 +62,8 @@ typedef struct NmspData {char* name;DynList* childnode;} NmspData;
 typedef struct GeniData {char* name;DynList* restrictions;} GeniData;
 typedef union TokenData {
     char *string, *identifier, *type;
-    char character, boolean, operator;
+    char boolean, operator;
+    int character;
     ushort keyword, modifier;
     long integer;
     double floating;
@@ -71,6 +75,7 @@ typedef union TokenData {
 } TokenData;
 
 typedef struct Token {
+    ubyte chk;
     TokenType type;
     long line, column;
     char* file;
@@ -79,6 +84,7 @@ typedef struct Token {
 
 Token* token_create(TokenType type, long line, long column, char* file, TokenData data) {
     Token* tok = (Token*)malloc(sizeof(Token));
+    tok->chk = 1;
     tok->type = type;
     tok->line = line;
     tok->column = column;
@@ -98,7 +104,16 @@ void token_print(Token* tok) {
         case Float:printf("value: %f\n", tok->data.floating);break;
         case Keyword:printf("keyword: %s\n", KEYWORDMAP[tok->data.keyword]);break;
         case Operator:printf("operator: %c\n", tok->data.operator);break;
-        case Char:printf("character: %c\n", tok->data.character);break;
+        case Char:
+            printf("character: ");
+            for (int i = 0; i < 4; i ++) {
+                int v = (tok->data.character>>((3-i)*8))&0xff;
+                if (v != 0 || i == 3) {
+                    printf("%c", (char)v);
+                }
+            }
+            printf("\n");
+            break;
         case String:printf("value: \"%s\"\n", tok->data.string);break;
         case Type:printf("value: %s\n", tok->data.type);break;
         case Mod:printf("modid: %s\n", MODIFMAP[tok->data.modifier]);break;

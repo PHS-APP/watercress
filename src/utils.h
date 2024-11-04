@@ -5,6 +5,45 @@
 #include <string.h>
 #include "./types.h"
 
+// whether to print markers
+char _DBG_MARKER = 0;
+#define debugf(enable, ...) if(enable)printf(__VA_ARGS__)
+#define marker(...) debugf(_DBG_MARKER, "\nMARKER[%d (%s){%s}]: ", __LINE__, __func__, __FILE__);debugf(_DBG_MARKER, __VA_ARGS__);debugf(_DBG_MARKER, "\n")
+
+// data structure tracing bit fields
+static char _DBG_DATASTRUCTURE_BASE = 0;
+static char _DBG_DATASTRUCTURE_MASK = 127;
+
+#define DATASTRUCTDBG_LINKEDLIST 1
+#define DATASTRUCTDBG_DYNLIST 2
+#define DATASTRUCTDBG_HASHMAP 4
+
+
+#define SRCLOC long line, const char* func, const char* file
+
+// DO NOT USE THIS, should only be called based on CLI args, this has already been handled
+void datastruct_debug_enable_base(char which) {
+    _DBG_DATASTRUCTURE_BASE |= which;
+}
+// DO NOT USE THIS, should only be called based on CLI args, this has already been handled
+void datastruct_debug_disable_base(char which) {
+    _DBG_DATASTRUCTURE_BASE &= ~which;
+}
+// allows trace printing that is known to be irrelevant in ALL CASES to be hidden
+// WARNING, only use for code which is KNOWN AND TESTED to function properly in ALL cases
+void datastruct_debug_enable_mask(char which) {
+    _DBG_DATASTRUCTURE_MASK |= which;
+}
+// WARNING, only use for code which is KNOWN AND TESTED to function properly in ALL cases
+void datastruct_debug_disable_mask(char which) {
+    _DBG_DATASTRUCTURE_MASK &= ~which;
+}
+
+#define _DBG_DATASTRUCTURE (_DBG_DATASTRUCTURE_BASE&_DBG_DATASTRUCTURE_MASK)
+#define LINKEDLIST_DEBUG (_DBG_DATASTRUCTURE&1)
+#define DYNLIST_DEBUG (_DBG_DATASTRUCTURE&2)
+#define HASHMAP_DEBUG (_DBG_DATASTRUCTURE&4)
+
 void _todo(ulong line, const char* file, const char* func) {
     printf("TODO ENCOUNTERED (line %lu of file '%s' function '%s')\n", line, file, func);
     exit(1);
@@ -78,6 +117,7 @@ void linkedlist_destroy(LinkedList* list) {
     LinkedListNode* next = 0;
     while (curr) {
         next = curr->next;
+        // printf("C=(%p) N=(%p) D=(%p)\n", (void*)curr, (void*)next, curr->data);
         if (curr->data) {
             free(curr->data);
         }
@@ -119,36 +159,55 @@ uint linkedlist_indexof(LinkedList* list, void* value) {
 /*
 creates a new node with the given data pointer and appends it to the list
 */
-void linkedlist_push(LinkedList* list, void* value) {
+void _linkedlist_push(LinkedList* list, void* value, long line, const char* func, const char* file) {
+    debugf(LINKEDLIST_DEBUG, "LLPU[%ld (%s){%s}]: [%d] D=(%p) ", line, func, file, list->size, value);
+    // if (!LINKEDLIST_DEBUG)printf("LLPU[%ld (%s){%s}]: [%d] (%p) ", line, func, file, list->size, value);
     LinkedListNode* node = linkedlist_init_node(list, value);
     if (list->head == 0) {
+        debugf(LINKEDLIST_DEBUG, "NPL");
+        // if (!LINKEDLIST_DEBUG)printf("NPL");
         list->head = node;
         list->tail = node;
     } else {
+        debugf(LINKEDLIST_DEBUG, "YPL=(%p)", (void*)list->tail);
+        // if (!LINKEDLIST_DEBUG)printf("YPL=(%p)", (void*)list->tail);
         list->tail->next = node;
         node->prev = list->tail;
         list->tail = node;
     }
+    debugf(LINKEDLIST_DEBUG, " CH=(%p) CT=(%p)\n", (void*)list->head, (void*)list->tail);
+    // if (!LINKEDLIST_DEBUG)printf(" CH=(%p) CT=(%p)\n", (void*)list->head, (void*)list->tail);
     list->size ++;
 }
+#define linkedlist_push(list, value) _linkedlist_push(list, value, __LINE__, __func__, __FILE__);
 /*
 pops the tail and returns the data pointer
 returns zero if the list was empty
 */
-void* linkedlist_pop(LinkedList* list) {
+void* _linkedlist_pop(LinkedList* list, long line, const char* func, const char* file) {
+    debugf(LINKEDLIST_DEBUG, "LLPO[%ld (%s){%s}]: [%d] ", line, func, file, list->size);
+    // if (!LINKEDLIST_DEBUG)printf("LLPO[%ld (%s){%s}]: [%d] ", line, func, file, list->size);
     if (list->tail == 0) {
         return 0;
     }
     list->size --;
     LinkedListNode* prev = list->tail->prev;
+    debugf(LINKEDLIST_DEBUG, "T=(%p) TP=(%p) ", (void*)list->tail, (void*)prev);
+    // if (!LINKEDLIST_DEBUG)printf("T=(%p) TP=(%p) ", (void*)list->tail, (void*)prev);
     void* data = list->tail->data;
+    debugf(LINKEDLIST_DEBUG, "D=(%p)\n", data);
+    free(list->tail);
+    // if (!LINKEDLIST_DEBUG)printf("D=(%p)\n", data);
     list->tail = prev;
     if (prev == 0) {
         list->head = 0;
+    } else {
+        prev->next = 0;
     }
-    free(prev);
+    // free(prev);
     return data;
 }
+#define linkedlist_pop(list) _linkedlist_pop(list, __LINE__, __func__, __FILE__)
 /*
 returns the node at the specified index
 returns zero if the index was out of bounds
@@ -200,10 +259,12 @@ LinkedListNode* linkedlist_set(LinkedList* list, uint index, LinkedListNode* nod
 inserts a new node with the given value into the list directly after the given node
 returns zero on success, -1 if the given node was null
 */
-int linkedlist_insert_next(LinkedList* list, LinkedListNode* node, void* value) {
-    if (node == 0) return -1;
+int _linkedlist_insert_next(LinkedList* list, LinkedListNode* node, void* value, SRCLOC) {
+    debugf(LINKEDLIST_DEBUG, "LLIN[%ld (%s){%s}]: [%d] N=(%p) D=(%p)", line, func, file, list->size, (void*)node, value);
+    if (node == 0) {debugf(LINKEDLIST_DEBUG, "\n");return -1;}
     LinkedListNode* new = linkedlist_init_node(list, value);
     list->size ++;
+    debugf(LINKEDLIST_DEBUG, " NN=(%p)\n", (void*)node->next);
     if (node->next) {
         node->next->prev = new;
         new->next = node->next;
@@ -214,14 +275,17 @@ int linkedlist_insert_next(LinkedList* list, LinkedListNode* node, void* value) 
     new->prev = node;
     return 0;
 }
+#define linkedlist_insert_next(list, node, value) _linkedlist_insert_next(list, node, value, __LINE__, __func__, __FILE__)
 /*
 inserts a new node with the given value into the list directly before the given node
 returns zero on success, -1 if the given node was null
 */
-int linkedlist_insert_prev(LinkedList* list, LinkedListNode* node, void* value) {
-    if (node == 0) return -1;
+int _linkedlist_insert_prev(LinkedList* list, LinkedListNode* node, void* value, SRCLOC) {
+    debugf(LINKEDLIST_DEBUG, "LLIP[%ld (%s){%s}]: [%d] N=(%p) D=(%p)", line, func, file, list->size, (void*)node, value);
+    if (node == 0) {debugf(LINKEDLIST_DEBUG, "\n");return -1;}
     LinkedListNode* new = linkedlist_init_node(list, value);
     list->size ++;
+    debugf(LINKEDLIST_DEBUG, " NP=(%p)\n", (void*)node->prev);
     if (node->prev) {
         node->prev->next = new;
         new->prev = node->prev;
@@ -232,12 +296,15 @@ int linkedlist_insert_prev(LinkedList* list, LinkedListNode* node, void* value) 
     new->next = node;
     return 0;
 }
+#define linkedlist_insert_prev(list, node, value) _linkedlist_insert_prev(list, node, value, __LINE__, __func__, __FILE__)
 /*
 inserts a new node with the given value at the specified index
 returns zero on success, -1 if the index is out of bounds
 */
-int linkedlist_insert_at(LinkedList* list, uint index, void* value) {
+int _linkedlist_insert_at(LinkedList* list, uint index, void* value, SRCLOC) {
+    debugf(LINKEDLIST_DEBUG, "LLIA[%ld (%s){%s}]: [%d] I=(%d) D=(%p)", line, func, file, list->size, index, value);
     if (index == list->size) {
+        debugf(LINKEDLIST_DEBUG, "\n");
         linkedlist_push(list, value);
         return 0;
     }
@@ -245,16 +312,21 @@ int linkedlist_insert_at(LinkedList* list, uint index, void* value) {
         return -1;
     }
     LinkedListNode* cnode = linkedlist_get(list, index);
+    debugf(LINKEDLIST_DEBUG, " GN=(%p)\n", (void*)cnode);
     return linkedlist_insert_prev(list, cnode, value);
 }
+#define linkedlist_insert_at(list, index, value) _linkedlist_insert_at(list, index, value, __LINE__, __func__, __FILE__)
 /*
 removes the node directly after the given node and returns its data pointer
 returns zero if the given node was null or there was no node after it
 */
-void* linkedlist_remove_next(LinkedList* list, LinkedListNode* node) {
-    if (node == 0) return 0;
+void* _linkedlist_remove_next(LinkedList* list, LinkedListNode* node, SRCLOC) {
+    debugf(LINKEDLIST_DEBUG, "LLRN[%ld (%s){%s}]: [%d] N=(%p)", line, func, file, list->size, (void*)node);
+    if (node == 0) {debugf(LINKEDLIST_DEBUG, "\n");return 0;}
     LinkedListNode* next = node->next;
+    debugf(LINKEDLIST_DEBUG, " NN=(%p)", (void*)node->next);
     if (next == 0) {
+        debugf(LINKEDLIST_DEBUG, "\n");
         return 0;
     }
     list->size --;
@@ -262,21 +334,27 @@ void* linkedlist_remove_next(LinkedList* list, LinkedListNode* node) {
         list->tail = node;
         node->next = 0;
     } else {
+        debugf(LINKEDLIST_DEBUG, " NNN=(%p)", (void*)next->next);
         node->next = next->next;
         next->next->prev = node;
     }
+    debugf(LINKEDLIST_DEBUG, "\n");
     void* data = next->data;
     free(next);
     return data;
 }
+#define linkedlist_remove_next(list, node) _linkedlist_remove_next(list, node, __LINE__, __func__, __FILE__)
 /*
 removes the node directly before the given node and returns its data pointer
 returns zero if the given node was null or there was no node before it
 */
-void* linkedlist_remove_prev(LinkedList* list, LinkedListNode* node) {
-    if (node == 0) return 0;
+void* _linkedlist_remove_prev(LinkedList* list, LinkedListNode* node, SRCLOC) {
+    debugf(LINKEDLIST_DEBUG, "LLRP[%ld (%s){%s}]: [%d] N=(%p)", line, func, file, list->size, (void*)node);
+    if (node == 0) {debugf(LINKEDLIST_DEBUG, "\n");return 0;}
     LinkedListNode* prev = node->prev;
+    debugf(LINKEDLIST_DEBUG, " NP=(%p)", (void*)node->prev);
     if (prev == 0) {
+        debugf(LINKEDLIST_DEBUG, "\n");
         return 0;
     }
     list->size --;
@@ -284,27 +362,37 @@ void* linkedlist_remove_prev(LinkedList* list, LinkedListNode* node) {
         list->head = node;
         node->prev = 0;
     } else {
+        debugf(LINKEDLIST_DEBUG, " NPP=(%p)", (void*)prev->prev);
         node->prev = prev->prev;
         prev->prev->next = node;
     }
+    debugf(LINKEDLIST_DEBUG, "\n");
     void* data = prev->data;
     free(prev);
     return data;
 }
+#define linkedlist_remove_prev(list, node) _linkedlist_remove_prev(list, node, __LINE__, __func__, __FILE__)
 /*
 removes the node at the specified index and returns its data pointer
 returns zero if the index was out of bounds
 */
-void* linkedlist_remove_at(LinkedList* list, uint index) {
+void* _linkedlist_remove_at(LinkedList* list, uint index, long line, const char* func, const char* file) {
+    debugf(LINKEDLIST_DEBUG, "LLRA[%ld (%s){%s}]: [%d] I=(%d)", line, func, file, list->size, index);
+    // if (!LINKEDLIST_DEBUG)printf("LLRA[%ld (%s){%s}]: [%d] I=(%d)", line, func, file, list->size, index);
     if (index >= list->size) {
         return 0;
     }
     if (index == list->size-1) {
+        debugf(LINKEDLIST_DEBUG, "\n");
+        // if (!LINKEDLIST_DEBUG)printf("\n");
         return linkedlist_pop(list);
     }
     LinkedListNode* cnode = linkedlist_get(list, index+1);
+    debugf(LINKEDLIST_DEBUG, " GN=(%p)\n", (void*)cnode);
+    // if (!LINKEDLIST_DEBUG)printf(" GN=(%p)\n", (void*)cnode);
     return linkedlist_remove_prev(list, cnode);
 }
+#define linkedlist_remove_at(list, index) _linkedlist_remove_at(list, index, __LINE__, __func__, __FILE__)
 
 typedef void(*ItemRel)(void*);
 
@@ -367,7 +455,7 @@ DynList* dynlist_reown(DynList* list) {
 }
 void dynlist_expand(DynList* list) {
     list->cap *= 2;
-    void** np = (void**)malloc(sizeof(void*)*(list->cap));
+    void** np = (void**)calloc(list->cap, sizeof(void*));
     for (uint i = 0; i < list->len; i ++) {
         np[i] = list->ptr[i];
     }
@@ -376,8 +464,9 @@ void dynlist_expand(DynList* list) {
     list->ptr = np;
 }
 void dynlist_contract(DynList* list) {
+    if (list->cap == 2) return;
     list->cap /= 2;
-    void** np = (void**)malloc(sizeof(void*)*(list->cap));
+    void** np = (void**)calloc(list->cap, sizeof(void*));
     for (uint i = 0; i < list->len; i ++) {
         np[i] = list->ptr[i];
     }
@@ -406,7 +495,8 @@ int dynlist_set(DynList* list, uint index, void* value) {
 appends the given value to the end of the list
 returns zero on success, -1 if the value was NULL
 */
-int dynlist_push(DynList* list, void* value) {
+int _dynlist_push(DynList* list, void* value, SRCLOC) {
+    debugf(DYNLIST_DEBUG, "DLPU[%ld (%s){%s}]: [%d/%d] D=(%p)\n", line, func, file, list->len, list->cap, value);
     if (value == NULL) return -1;
     if (list->len == list->cap) {
         dynlist_expand(list);
@@ -414,23 +504,30 @@ int dynlist_push(DynList* list, void* value) {
     (list->ptr)[list->len++] = value;
     return 0;
 }
+#define dynlist_push(list, value) _dynlist_push(list, value, __LINE__, __func__, __FILE__)
 /*
 removes and returns the value at the end of the list
 returns NULL if the list was empty
 */
-void* dynlist_pop(DynList* list) {
-    if (list->len == 0) return NULL;
+void* _dynlist_pop(DynList* list, SRCLOC) {
+    debugf(DYNLIST_DEBUG, "DLPO[%ld (%s){%s}]: [%d/%d]", line, func, file, list->len, list->cap);
+    if (list->len == 0) {debugf(DYNLIST_DEBUG, "\n");return NULL;}
     void* ret = (list->ptr)[--list->len];
+    debugf(DYNLIST_DEBUG, " D=(%p)\n", ret);
     if (list->len*4 <= list->cap) {
         dynlist_contract(list);
+    } else {
+        (list->ptr)[list->len] = 0;
     }
     return ret;
 }
+#define dynlist_pop(list) _dynlist_pop(list, __LINE__, __func__, __FILE__)
 /*
 inserts the given value at the specified index
 returns zero on success, -1 if the index was out of bounds or the given value was NULL
 */
-int dynlist_insert(DynList* list, uint index, void* value) {
+int _dynlist_insert(DynList* list, uint index, void* value, SRCLOC) {
+    debugf(DYNLIST_DEBUG, "DLIN[%ld (%s){%s}]: [%d/%d] I=(%d) D=(%p)\n", line, func, file, list->len, list->cap, index, value);
     if (index > list->len || value == NULL) return -1;
     if (index == list->len) {
         dynlist_push(list, value);
@@ -445,7 +542,7 @@ int dynlist_insert(DynList* list, uint index, void* value) {
             }
             // memcpy(np, list->ptr, (size_t)index);
         }
-        for (uint i = index; i < (list->len - index); i ++) {
+        for (uint i = index; i < list->len; i ++) {
             np[i+1] = list->ptr[i];
         }
         // memcpy(np+index+1, list->ptr+index, (size_t)(list->len-index));
@@ -462,14 +559,18 @@ int dynlist_insert(DynList* list, uint index, void* value) {
     list->len ++;
     return 0;
 }
+#define dynlist_insert(list, index, value) _dynlist_insert(list, index, value, __LINE__, __func__, __FILE__)
 /*
 removes and returns the value at the specified index
 returns NULL if the index was out of bounds
 */
-void* dynlist_remove(DynList* list, uint index) {
-    if (index >= list->len) return NULL;
+void* _dynlist_remove(DynList* list, uint index, SRCLOC) {
+    debugf(DYNLIST_DEBUG, "DLRE[%ld (%s){%s}]: [%d/%d] I=(%d)", line, func, file, list->len, list->cap, index);
+    if (index >= list->len) {debugf(DYNLIST_DEBUG, "\n");return NULL;}
+    if (index == list->len - 1) {debugf(DYNLIST_DEBUG, "\n");return dynlist_pop(list);}
     list->len --;
     void* ret = list->ptr[index];
+    debugf(DYNLIST_DEBUG, " D=(%p)\n", ret);
     if (list->len*4 <= list->cap) {
         list->cap /= 2;
         void** np = (void**)malloc(sizeof(void*)*(list->cap));
@@ -479,7 +580,7 @@ void* dynlist_remove(DynList* list, uint index) {
             }
             // memcpy(np, list->ptr, index);
         }
-        for (uint i = index; i < (list->len - index); i ++) {
+        for (uint i = index; i < list->len; i ++) {
             np[i] = list->ptr[i+1];
         }
         // memcpy(np+index, list->ptr+index+1, (size_t)(list->len-index));
@@ -491,6 +592,14 @@ void* dynlist_remove(DynList* list, uint index) {
         list->ptr[i] = list->ptr[i+1];
     }
     return ret;
+}
+#define dynlist_remove(list, index) _dynlist_remove(list, index, __LINE__, __func__, __FILE__)
+void dynlist_inspect(DynList* list) {
+    printf("(%p)[%d/%d]\n", (void*)list->ptr, list->len, list->cap);
+    for (int i = 0; i < list->cap; i ++) {
+        printf("(%p) ", list->ptr[i]);
+    }
+    printf("\n");
 }
 
 /*
@@ -591,6 +700,7 @@ typedef struct HashMap {
   HashFunc h1;
   HashFunc h2;
   ItemEq eq;
+  ItemRel rel;
   int size;
   int entries;
   HashMapEntry *table; 
@@ -601,6 +711,7 @@ HashMap *hashmap_create(HashFunc h1, HashFunc h2, ItemEq eq) {
     map->h1 = h1;
     map->h2 = h2;
     map->eq = eq;
+    map->rel = free;
     map->size = 17;
     map->entries = 0;
     map->table = (HashMapEntry *)malloc(sizeof(HashMapEntry)*map->size);
@@ -615,8 +726,8 @@ HashMap *hashmap_create(HashFunc h1, HashFunc h2, ItemEq eq) {
 void hashmap_destroy(HashMap *map) {
     for (int i = 0; i < map->size; i ++) {
         if (map->table[i].key != NULL) {
-            free(map->table[i].value);
-            free(map->table[i].key);
+            map->rel(map->table[i].value);
+            map->rel(map->table[i].key);
         }
     }
     free(map->table);
@@ -625,8 +736,10 @@ void hashmap_destroy(HashMap *map) {
 
 void hashmap_expand(HashMap *map);
 
-void hashmap_set(HashMap *map, void *key, void *value) {
+void _hashmap_set(HashMap *map, void *key, void *value, SRCLOC) {
+    debugf(HASHMAP_DEBUG, "HMSE[%ld (%s){%s}]: [%d/%d] K=(%p) V=(%p)", line, func, file, map->entries, map->size, key, value);
     if (key == NULL) {
+        debugf(HASHMAP_DEBUG, "\n");
         puts("oops");
         return;
     }
@@ -637,44 +750,59 @@ void hashmap_set(HashMap *map, void *key, void *value) {
         // todo: make implementation better to deal with 0
         b = 1;
     }
+    debugf(HASHMAP_DEBUG, " a=%#lx b=%#lx", a, b);
 
     for (int i = 0; i < map->entries+1; i++) {
         ulong index = (a+b*i) % (map->size);
         if (map->table[index].key == NULL || (map->eq)(map->table[index].key, key)) {
+            debugf(HASHMAP_DEBUG, " I=(%d) S=(%lu)", i, index);
             map->table[index].key = key;
             map->table[index].value = value;
             map->entries++;
 
             if (map->entries * 2 > map->size) {
+                debugf(HASHMAP_DEBUG, " EX");
                 hashmap_expand(map);
+            } else {
+                debugf(HASHMAP_DEBUG, " NEX");
             }
+            debugf(HASHMAP_DEBUG, "\n");
             return;
         }
     }
+    debugf(HASHMAP_DEBUG, " S=(NO SPACE)\n");
 
     // there has been a BIG error. don't do anything...
     return;
 }
+#define hashmap_set(map, key, value) _hashmap_set(map, key, value, __LINE__, __func__, __FILE__)
 
-void *hashmap_get(HashMap *map, void *key) {
+void *_hashmap_get(HashMap *map, void *key, SRCLOC) {
+    debugf(HASHMAP_DEBUG, "HMGE[%ld (%s){%s}]: [%d/%d] K=(%p)", line, func, file, map->entries, map->size, key);
     ulong a = (map->h1)(key);
     ulong b = (map->h2)(key);
     if (b % map->size == 0) {
         b = 1;
     }
+    debugf(HASHMAP_DEBUG, " a=%#lx b=%#lx", a, b);
     for (int i = 0; i < map->entries; i++) {
         ulong index = (a+b*i) % (map->size);
         if (map->table[index].key == NULL) {
+            debugf(HASHMAP_DEBUG, " I=(%d) S=(%lu) V=(%p)\n", i, index, NULL);
             return NULL;
         } else if ((map->eq)(map->table[index].key, key)) {
+            debugf(HASHMAP_DEBUG, " I=(%d) S=(%lu) V=(%p)\n", i, index, map->table[index].value);
             return map->table[index].value;
         } 
     }
+    debugf(HASHMAP_DEBUG, " S=(NOT FOUND)\n");
 
     return NULL;
 }
+#define hashmap_get(map, key) _hashmap_get(map, key, __LINE__, __func__, __FILE__)
 
 void hashmap_expand(HashMap *map) {
+    datastruct_debug_disable_mask(DATASTRUCTDBG_HASHMAP);
     HashMapEntry *old_table = map->table;
     int old_size = map->size;
     map->size = map->size * 2 + 1;
@@ -691,18 +819,22 @@ void hashmap_expand(HashMap *map) {
             hashmap_set(map, old_table[i].key, old_table[i].value);
         }
     }
+    datastruct_debug_enable_mask(DATASTRUCTDBG_HASHMAP);
 
     free(old_table);
 }
 
 HashMap *hashmap_copy(HashMap *original) {
+    datastruct_debug_disable_mask(DATASTRUCTDBG_HASHMAP);
     HashMap *new = hashmap_create(original->h1, original->h2, original->eq);
+    new->rel = original->rel;
 
     for (int i = 0; i < original->size; i++) {
         if (original->table[i].key != NULL) {
             hashmap_set(new, original->table[i].key, original->table[i].value);
         }
     }
+    datastruct_debug_enable_mask(DATASTRUCTDBG_HASHMAP);
 
     return new;
 }
@@ -723,7 +855,7 @@ ulong hashstr(void* strp) {
 
 ulong hashstr2(void* strp) {
     ubyte* str = (ubyte*)strp;
-    ulong hash = 0, h;
+    ulong hash = 0, h = 0;
     ubyte c;
     while ((c = *str++) != 0) {
         hash = (hash << 4) + c;
@@ -732,7 +864,7 @@ ulong hashstr2(void* strp) {
         }
         hash &= ~h;
     }
-    return h;
+    return hash;
 }
 
 long hashsized(void* vdata, size_t size) {
@@ -757,5 +889,7 @@ int inteq(void *a, void *b) {
 ulong ident(void *a) {
     return (ulong)a;
 }
+
+#undef _DBG_DATASTRUCTURE
 
 #endif

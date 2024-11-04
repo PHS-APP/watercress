@@ -82,7 +82,7 @@ Primitives (not finalized):
 f[32|64] - float and double
 bool - u8 restricted to one and zero
 char - undecided
-[*][] - array of '*'s
+[*] - array of '*'s
 complex? - a complex number
 null - an unset value
 
