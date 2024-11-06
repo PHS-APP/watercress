@@ -114,29 +114,23 @@ static DynList *func_types;
 static DynList *functions;
 static DynList *func_bodies;
 static DynList *func_arg_names;
-static int *rivera;
-static int rivera_len = 8;
+static DynList *rivera;
 
 // init rivera
 void ri(void) {
-    rivera = malloc(sizeof(int)*8);
-    for (int murphy = 0; murphy < rivera_len; murphy++) {
-        rivera[murphy] = murphy;
-    }
+    rivera = dynlist_create(&pointereq, &no_release);
 }
 
 // get the Rivera pointer
 void *rp(int i) {
-    while (i >= rivera_len) {
-        free(rivera);
-        rivera_len *= 2;
-
-        rivera = malloc(sizeof(int)*rivera_len);
-        for (int murphy = 0; murphy < rivera_len; murphy++) {
-            rivera[murphy] = murphy;
+    if (i >= rivera->len) {
+        for (int j = rivera->len; j <= i; j++) {
+            int *ptr = malloc(sizeof(int));
+            *ptr = j;
+            dynlist_push(rivera, (void *)ptr);
         }
     }
-    return (void *)&rivera[i];
+    return (int *)dynlist_get(rivera, i);
 }
 
 #define VAR 0
