@@ -250,7 +250,7 @@ DataType *compile_type(Token *type_def) {
         Token *name = dynlist_get(part->data.group, 0);
         // hack: assume there are no generics
         Token *inner_type = dynlist_get((void *)((Token *)dynlist_get(part->data.node, 1))->data.group, 0);
-        if ((kind == KEYWORD_SUM && name->type != Type) || (kind == KEYWORD_PROD && name->type != Ident) || inner_type->type != Ident) {
+        if ((kind == KEYWORD_SUM && name->type != Type) || (kind == KEYWORD_PROD && name->type != Ident) || inner_type->type != Type) {
             goto schartman;
         }
 

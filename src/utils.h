@@ -756,9 +756,11 @@ void _hashmap_set(HashMap *map, void *key, void *value, SRCLOC) {
         ulong index = (a+b*i) % (map->size);
         if (map->table[index].key == NULL || (map->eq)(map->table[index].key, key)) {
             debugf(HASHMAP_DEBUG, " I=(%d) S=(%lu)", i, index);
+            if (map->table[index].key == NULL) {
+                map->entries++;
+            }
             map->table[index].key = key;
             map->table[index].value = value;
-            map->entries++;
 
             if (map->entries * 2 > map->size) {
                 debugf(HASHMAP_DEBUG, " EX");
@@ -819,6 +821,7 @@ void hashmap_expand(HashMap *map) {
             hashmap_set(map, old_table[i].key, old_table[i].value);
         }
     }
+
     datastruct_debug_enable_mask(DATASTRUCTDBG_HASHMAP);
 
     free(old_table);
