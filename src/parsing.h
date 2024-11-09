@@ -1997,9 +1997,10 @@ static Token* transform_parser_tree(char* treename, DynList* partree, LinkedList
                     }
                     post_depth_update:
                     if (depth == 0) {
-                        dynlist_push(buildnode, transform_proc_fncbod(treename, tokbufx));
+                        dynlist_push(((Token*)(buildnode->ptr[0]))->data.node, transform_proc_fncbod(treename, tokbufx));
                         dynlist_clear(tokbufx);
-                        dynlist_push(semroot->data.namespace.childnode, smart_create_tokenl(Node, noloc, dynlist_reown(buildnode)));
+                        dynlist_push(semroot->data.namespace.childnode, dynlist_get(buildnode, 0));
+                        dynlist_clear(buildnode);
                         subsec = 0;
                         continue;
                     }
