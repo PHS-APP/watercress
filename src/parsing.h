@@ -865,7 +865,7 @@ returns a new dynamic list that can contain parser tokens of type CONTENT_PROC
 */
 static DynList* transform_proc_ntriv(char* treename, DynList* tokens) {
     // for (int i = 0; i < tokens->len; i ++) {
-    //     parsertoken_print(tokens->ptr[i]);
+    //     parsertoken_print_condensed(tokens->ptr[i]);
     // }
     DynList* final = dynlist_create(pointereq, no_release);
     DynList* build = dynlist_create(pointereq, no_release);
@@ -877,6 +877,16 @@ static DynList* transform_proc_ntriv(char* treename, DynList* tokens) {
         ParserToken* tok = (ParserToken*)tokens->ptr[i];
         // printf("LOOP ITER: %d\n", i);
         // parsertoken_print(tok);
+        // for (int j = 0; j < build->len; j ++) {
+        //     ParserToken* pt = dynlist_get(build, j);
+        //     printf("CHECK (build[%d]): %d\n", j, pt->chk);
+        //     if (pt->chk == 2) {
+        //         parsertoken_print_condensed(pt);
+        //     } else {
+        //         print_semantic_token((Token*)pt, "");
+        //     }
+        // }
+        // printf("\n");
         // for (int j = 0; j < final->len; j ++) {
         //     parsertoken_print(dynlist_get(final, j));
         // }
@@ -1182,9 +1192,9 @@ static Token* transform_proc_expression(char* treename, DynList* itoks) {
                     // printf("%p\n", (void*)rtok);
                     // printf("YS2 STATE: size=%d head=%p tail=%p\n", yardstack2->size, (void*)yardstack2->head, (void*)yardstack2->tail);
                 }
-                dynlist_push(final, smart_create_tokenl(Node, noloc, dynlist_reown(build)));
+                linkedlist_push(yardstack2, smart_create_tokenl(Node, noloc, dynlist_reown(build)));
             } else {
-                dynlist_push(final, smart_create_tokenl(Group, noloc, dynlist_reown(build)));
+                linkedlist_push(yardstack2, smart_create_tokenl(Group, noloc, dynlist_reown(build)));
             }
             flag --;
             f2 = 0;
@@ -1235,7 +1245,7 @@ static Token* transform_proc_expression(char* treename, DynList* itoks) {
         }
         if (tok->type == CONTENT_PROC) {
             for (int j = 0; j < tok->data.processed->len; j ++) {
-                linkedlist_push(yardstack2, tok->data.processed->ptr[i]);
+                linkedlist_push(yardstack2, tok->data.processed->ptr[j]);
             }
             free(tok->data.processed->ptr);
             free(tok->data.processed);
@@ -1258,6 +1268,9 @@ static Token* transform_proc_expression(char* treename, DynList* itoks) {
         // dynlist_push(final, convert_token(treename, pt));
         dynlist_push(final, pt);
     }
+    // for (int i = 0; i < final->len; i ++) {
+    //     print_semantic_token(dynlist_get(final, i), "");
+    // }
     // printf("FTDONE\n");
     dynlist_destroy(tokens);
     dynlist_destroy(build);
@@ -2266,10 +2279,12 @@ Token* parse_file(char* fpath, char mode, LinkedList* tofollow) {
     if (!mode) {
         DynList* dyntoks = dynlist_create(pointereq, no_release);
         LinkedListNode* c = tokens->head;
+        datastruct_debug_disable_mask(DATASTRUCTDBG_DYNLIST);
         while (c) {
             dynlist_push(dyntoks, c->data);
             c = c->next;
         }
+        datastruct_debug_enable_mask(DATASTRUCTDBG_DYNLIST);
         fintree = transform_parser_tree(fpath, dyntoks, tofollow);
         dynlist_destroy(dyntoks);
     }
