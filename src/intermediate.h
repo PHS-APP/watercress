@@ -33,6 +33,14 @@ typedef struct Function {
   DynList *instructions; // the list of instructions in the function
 } Function;
 
+void print_func(Function *f, int index) {
+    printf("%d: ( ", index);
+    for (int i = 0; i < f->arg_types->len; i++) {
+        printf("%d ", *(int *)dynlist_get(f->arg_types, i));
+    }
+    printf(") -> %d\n", f->ret_type);
+}
+
 typedef struct DataType {
   enum {Builtin, Sum, Product} kind; // the kind of type
   HashMap *names;                    // the names/indices of the variants or fields of the type (depends on kind of type)
@@ -66,6 +74,10 @@ void print_program(Program *p) {
     puts("TYPES");
     for (int i = 0; i < p->types->len; i++) {
         print_type((DataType *)dynlist_get(p->types, i), i);
+    }
+    puts("FUNCTIONS");
+    for (int i = 0; i < p->functions->len; i++) {
+        print_func((Function *)dynlist_get(p->functions, i), i);
     }
 }
 
@@ -130,7 +142,7 @@ void *rp(int i) {
             dynlist_push(rivera, (void *)ptr);
         }
     }
-    return (int *)dynlist_get(rivera, i);
+    return dynlist_get(rivera, i);
 }
 
 #define VAR 0
@@ -206,13 +218,13 @@ Expression *compile_expr(Token *t, HashMap *var_names, DynList *var_types) {
 
         return expr;
     default:
-      printf("whoops");
+      printf("whoops\n");
       break;
     }
 
  schartman:
     // something bad has happened
-    printf("oopsies");
+    printf("oopsies\n");
     return NULL;
 }
 
@@ -358,7 +370,7 @@ Program *compile(Token *t) {
             Token *args = dynlist_get(n->data.node, 2);
             Token *ret  = dynlist_get(n->data.node, 3);
             Token *body = dynlist_get(n->data.node, 4);
-            if (name->type != Ident || args->type != Group || ret->type != Type || body->type != Node) {
+            if (name->type != Ident || args->type != Group || ret->type != Group || body->type != Group) {
                 goto schartman;
             }
 
@@ -367,27 +379,22 @@ Program *compile(Token *t) {
 
             // get the types of the arguments of the function
             func->arg_types = dynlist_create(&pointereq, &no_release);
-            int num_args = 1;
+            HashMap *arg_names = hashmap_create(&hashstr, &hashstr2, &streq);
             
             for (int sharkman = 0; sharkman < args->data.group->len; sharkman++) {
-                Token *arg = (Token *)(dynlist_get(args->data.group, sharkman));
-                if (arg->type == Type) {
-                    dynlist_push(func->arg_types, hashmap_get(type_names, arg->data.type));
-                } else if (arg->type == Ident) {
-                    num_args++;                    
-                } else {
-                    // deal with modifiers
-                    todo();
-                }
+                Token *arg_name = ((Token *)dynlist_get(args->data.group, sharkman))->data.group->ptr[0];
+                Token *arg_type = ((Token *)dynlist_get(args->data.group, sharkman))->data.group->ptr[1];
+                hashmap_set(arg_names, (void *)arg_name->data.identifier, rp(sharkman));
+                // hack: assume no generics
+                // hack: ignore modifiers
+                dynlist_push(func->arg_types, hashmap_get(type_names, ((Token *)arg_type->data.group->ptr[0])->data.type));
             }
 
-            // make sure there were no shenanigans
-            if (num_args != func->arg_types->len) {
-                goto schartman;
-            }
+            dynlist_push(func_arg_names, (void *)arg_names);
 
             // set the function's return type
-            func->ret_type = *((int *)hashmap_get(type_names, ret->data.type));
+            // hack: assume no generics
+            func->ret_type = *((int *)hashmap_get(type_names, ((Token *)ret->data.group->ptr[0])->data.type));
 
             // store the signature, return type, and body for later use
             struct FunctionIdentifier *ident = malloc(sizeof(struct FunctionIdentifier));
@@ -396,7 +403,7 @@ Program *compile(Token *t) {
             
             hashmap_set(func_idents, (void *)ident, rp(functions->len));
             dynlist_push(func_types, rp(func->ret_type));
-            dynlist_push(func_bodies, (void *)body->data.node);
+            dynlist_push(func_bodies, (void *)body->data.group);
 
             // store the function itself
             dynlist_push(functions, (void *)func);
