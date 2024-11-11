@@ -733,6 +733,7 @@ static Token* transform_proc_fncdef(char* treename, DynList* tokens) {
                 if (!strcmp(tok->data.symbol, "(")) {
                     part = 3;
                     depth = 1;
+                    dynlist_push(final, smart_create_tokenl(Group, tokloc, dynlist_create(pointereq, no_release)));
                     continue;
                 }
             }
@@ -745,7 +746,8 @@ static Token* transform_proc_fncdef(char* treename, DynList* tokens) {
                     depth --;
                 }
                 if (depth == 0 || (depth == 1 && !strcmp(tok->data.symbol, ","))) {
-                    dynlist_push(final, transform_proc_fparam(treename, buffer));
+                    DynList* l = ((Token*)(final->ptr[final->len-1]))->data.group;
+                    dynlist_push(l, transform_proc_fparam(treename, buffer));
                     dynlist_clear(buffer);
                     if (depth == 0) {
                         part = 4;
