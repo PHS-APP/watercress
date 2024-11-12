@@ -1458,7 +1458,9 @@ static Token* transform_proc_fncbod(char* treename, DynList* tokens) {
                 if (str >= 0 && !simpl) {
                     dynlist_push(((Token*)build->ptr[build->len-1])->data.node, t);
                 } else {
-                    dynlist_push(build, t);
+                    // dynlist_push(build, t);
+                    dynlist_transfer(t->data.group, build);
+                    free(t);
                 }
                 dynlist_push(final, smart_create_tokenl(Node, noloc, dynlist_reown(build)));
                 dynlist_clear(buffer);
