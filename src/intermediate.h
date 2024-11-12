@@ -505,7 +505,7 @@ Program *compile(Token *t) {
                 ushort keyword = ((Token *)dynlist_get(parts, 0))->data.keyword;
                 if (keyword == KEYWORD_RETURN) {
                     // get the expression to return
-                    Expression *e = compile_expr((Token *)dynlist_get(parts, 1), var_names, var_types);
+                    Expression *e = compile_expr((Token *)dynlist_get(((Token *)dynlist_get(parts, 1))->data.group, 0), var_names, var_types);
 
                     // check that the return type is the same
                     if (e->type != *((int *)dynlist_get(func_types, scarfman))) {
