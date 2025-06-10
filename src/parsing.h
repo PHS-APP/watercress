@@ -283,7 +283,7 @@ static char* resolve_strstr(char* str) {
 }
 
 static void parsing_error(const char* msg, long line, long col, const char* file) {
-    printf("PARSE ERROR: %s\nSOURCE: %li, %li of %s\n", msg, line, col, file);
+    printf(TXT_RED("PARSE ERROR")": %s\n"TXT_YEL("SOURCE")": %li, %li of %s\n", msg, line, col, file);
     exit(1);
 }
 
@@ -400,8 +400,8 @@ static int check_symbol_continuity(StrBuf* buf, char new) {
 // static void parsertoken_print(ParserToken*);
 
 static void _transform_error(char* msg, ParserToken* cause, long line, const char* func, const char* file) {
-    printf("%li, %s{%s}\n", line, func, file);
-    printf("Semantic Transformation Error: %s (%li, %li, %s)\n", msg, cause->line, cause->column, cause->file);
+    printf(TXT_MAG("%li, %s{%s}")"\n", line, func, file);
+    printf(TXT_RED("Semantic Transformation Error")": %s (%li, %li, %s)\n", msg, cause->line, cause->column, cause->file);
     parsertoken_print(cause);
     exit(1);
 }
@@ -1757,6 +1757,13 @@ static Token* transform_parser_tree(char* treename, DynList* partree, LinkedList
                 if (strcmp(tok->data.word, "use")) {
                     // printf("\nNOT USE, REPHASE\n");
                     sourcephase = rephase(sourcephase, tok);
+                    dynlist_push(semroot->data.namespace.childnode, smart_create_tokent(Sep, tok, 0));
+                    if (sourcephase > PHASE_GLBL) {
+                        dynlist_push(semroot->data.namespace.childnode, smart_create_tokent(Sep, tok, 0));
+                    }
+                    if (sourcephase > PHASE_TYPE) {
+                        dynlist_push(semroot->data.namespace.childnode, smart_create_tokent(Sep, tok, 0));
+                    }
                     // printf("PHASE=%d\n\n", sourcephase);
                     subsec = 0;
                     goto inner_continue;
@@ -1837,10 +1844,12 @@ static Token* transform_parser_tree(char* treename, DynList* partree, LinkedList
             }
         } else if (sourcephase == PHASE_GLBL) {
             todo();
+            dynlist_push(semroot->data.namespace.childnode, smart_create_tokent(Sep, tok, 0));
         } else if (sourcephase == PHASE_TYPE) {
             if (subsec == 0) { // |typedef or |pattern
                 if (strcmp(tok->data.word, "typedef") && strcmp(tok->data.word, "pattern")) {
                     sourcephase = rephase(sourcephase, tok);
+                    dynlist_push(semroot->data.namespace.childnode, smart_create_tokent(Sep, tok, 0));
                     subsec = 0;
                     stmtkind = 0;
                     goto inner_continue;
@@ -2305,6 +2314,47 @@ Token* parse_file(char* fpath, char mode, LinkedList* tofollow) {
     return fintree;
 }
 
+void parser_postproc_funcs(DynList* funcs) {}
+
+void parser_postproc_switch(DynList* toks, int f, int s, int e) {
+    DynList window = {.eq=pointereq,.rel=no_release,.cap=0,.len=e-s,.ptr=(toks->ptr+s)};
+    if (f == 0) {
+        todo(); // do use processing
+    } else if (f == 1) {
+        todo(); // do global processing
+    } else if (f == 2) {
+        todo(); // do typedef processing
+    } else if (f == 3) {
+        parser_postproc_funcs(&window);
+    } else {
+        // something is very wrong here
+        printf("switch parameter out of bounds in parser_postproc_switch\n");
+        exit(1);
+    }
+}
+
+void parser_post_process(DynList* namespaces) {
+    int f = 0;
+    int s = 0, e = 0;
+    for (int i = 0; i < namespaces->len; i ++) {
+        f = 0;
+        s = 0;
+        e = 0;
+        Token* ns = (Token*)namespaces->ptr[i];
+        for (int j = 0; j < ns->data.namespace.childnode->len; j ++) {
+            e = j;
+            Token* tok = (Token*)ns->data.namespace.childnode->ptr[j];
+            if (tok->type == Sep) {
+                parser_postproc_switch(ns->data.namespace.childnode, f, s, e);
+                s = i+1;
+                f ++;
+                continue;
+            }
+        }
+        parser_postproc_switch(ns->data.namespace.childnode, f+1, s, e);
+    }
+}
+
 #undef CONTENT_NONE
 #undef CONTENT_STR
 #undef CONTENT_WORD
@@ -2405,7 +2455,11 @@ void parser_test_stokens(char* fpath) {
     LinkedList* tofollow = LINKED_OBJECTS;
     Token* output = parse_file(fpath, 0, tofollow);
     linkedlist_destroy(tofollow);
+    DynList container = {.cap=0,.len=1,.eq=pointereq,.rel=no_release,.ptr=(void**)malloc(sizeof(void*))};
+    container.ptr[0] = output;
     printf("PARSED\n");
+    parser_post_process(&container);
+    printf("POST PROCESSED\n");
     print_semantic_token(output, "");
 }
 
@@ -2420,6 +2474,7 @@ DynList* parser_parse(char* filename) {
         }
     }
     linkedlist_destroy(tofollow);
+    parser_post_process(list);
     return list;
 }
 

@@ -5,6 +5,32 @@
 #include <string.h>
 #include "./types.h"
 
+// fun colors
+#define ANSI_NUN "\x1b[0m"
+#define ANSI_RED "\x1b[38;5;196m"
+// #define ANSI_GRN "\x1b[38;5;34m"
+#define ANSI_YEL "\x1b[38;5;214m"
+// #define ANSI_RED "\x1b[31m"
+#define ANSI_GRN "\x1b[32m"
+// #define ANSI_YEL "\x1b[33m"
+#define ANSI_BLU "\x1b[34m"
+#define ANSI_MAG "\x1b[35m"
+#define ANSI_CYA "\x1b[36m"
+
+#define FMT_RED(...) ANSI_RED, __VA_ARGS__, ANSI_NUN
+#define FMT_GRN(...) ANSI_GRN, __VA_ARGS__, ANSI_NUN
+#define FMT_YEL(...) ANSI_YEL, __VA_ARGS__, ANSI_NUN
+#define FMT_BLU(...) ANSI_BLU, __VA_ARGS__, ANSI_NUN
+#define FMT_MAG(...) ANSI_MAG, __VA_ARGS__, ANSI_NUN
+#define FMT_CYA(...) ANSI_CYA, __VA_ARGS__, ANSI_NUN
+#define TXT_RED(text) ANSI_RED text ANSI_NUN
+#define TXT_GRN(text) ANSI_GRN text ANSI_NUN
+#define TXT_YEL(text) ANSI_YEL text ANSI_NUN
+#define TXT_BLU(text) ANSI_BLU text ANSI_NUN
+#define TXT_MAG(text) ANSI_MAG text ANSI_NUN
+#define TXT_CYA(text) ANSI_CYA text ANSI_NUN
+#define COLORED(thing) "%s"#thing"%s"
+
 // whether to print markers
 char _DBG_MARKER = 0;
 #define debugf(enable, ...) if(enable)printf(__VA_ARGS__)
@@ -160,22 +186,22 @@ uint linkedlist_indexof(LinkedList* list, void* value) {
 creates a new node with the given data pointer and appends it to the list
 */
 void _linkedlist_push(LinkedList* list, void* value, long line, const char* func, const char* file) {
-    debugf(LINKEDLIST_DEBUG, "LLPU[%ld (%s){%s}]: [%d] D=(%p) ", line, func, file, list->size, value);
+    debugf(LINKEDLIST_DEBUG, TXT_GRN("LLPU")"[%ld (%s){%s}]: "TXT_BLU("[%d]")" D=("TXT_MAG("%p")") ", line, func, file, list->size, value);
     // if (!LINKEDLIST_DEBUG)printf("LLPU[%ld (%s){%s}]: [%d] (%p) ", line, func, file, list->size, value);
     LinkedListNode* node = linkedlist_init_node(list, value);
     if (list->head == 0) {
-        debugf(LINKEDLIST_DEBUG, "NPL");
+        debugf(LINKEDLIST_DEBUG, TXT_YEL("NPL"));
         // if (!LINKEDLIST_DEBUG)printf("NPL");
         list->head = node;
         list->tail = node;
     } else {
-        debugf(LINKEDLIST_DEBUG, "YPL=(%p)", (void*)list->tail);
+        debugf(LINKEDLIST_DEBUG, TXT_CYA("YPL")"=("TXT_MAG("%p")")", (void*)list->tail);
         // if (!LINKEDLIST_DEBUG)printf("YPL=(%p)", (void*)list->tail);
         list->tail->next = node;
         node->prev = list->tail;
         list->tail = node;
     }
-    debugf(LINKEDLIST_DEBUG, " CH=(%p) CT=(%p)\n", (void*)list->head, (void*)list->tail);
+    debugf(LINKEDLIST_DEBUG, " CH=("TXT_MAG("%p")") CT=("TXT_MAG("%p")")\n", (void*)list->head, (void*)list->tail);
     // if (!LINKEDLIST_DEBUG)printf(" CH=(%p) CT=(%p)\n", (void*)list->head, (void*)list->tail);
     list->size ++;
 }
@@ -185,17 +211,17 @@ pops the tail and returns the data pointer
 returns zero if the list was empty
 */
 void* _linkedlist_pop(LinkedList* list, long line, const char* func, const char* file) {
-    debugf(LINKEDLIST_DEBUG, "LLPO[%ld (%s){%s}]: [%d] ", line, func, file, list->size);
+    debugf(LINKEDLIST_DEBUG, TXT_GRN("LLPO")"[%ld (%s){%s}]: "TXT_BLU("[%d]")" ", line, func, file, list->size);
     // if (!LINKEDLIST_DEBUG)printf("LLPO[%ld (%s){%s}]: [%d] ", line, func, file, list->size);
     if (list->tail == 0) {
         return 0;
     }
     list->size --;
     LinkedListNode* prev = list->tail->prev;
-    debugf(LINKEDLIST_DEBUG, "T=(%p) TP=(%p) ", (void*)list->tail, (void*)prev);
+    debugf(LINKEDLIST_DEBUG, "T=("TXT_MAG("%p")") TP=("TXT_MAG("%p")") ", (void*)list->tail, (void*)prev);
     // if (!LINKEDLIST_DEBUG)printf("T=(%p) TP=(%p) ", (void*)list->tail, (void*)prev);
     void* data = list->tail->data;
-    debugf(LINKEDLIST_DEBUG, "D=(%p)\n", data);
+    debugf(LINKEDLIST_DEBUG, "D=("TXT_MAG("%p")")\n", data);
     free(list->tail);
     // if (!LINKEDLIST_DEBUG)printf("D=(%p)\n", data);
     list->tail = prev;
@@ -260,11 +286,11 @@ inserts a new node with the given value into the list directly after the given n
 returns zero on success, -1 if the given node was null
 */
 int _linkedlist_insert_next(LinkedList* list, LinkedListNode* node, void* value, SRCLOC) {
-    debugf(LINKEDLIST_DEBUG, "LLIN[%ld (%s){%s}]: [%d] N=(%p) D=(%p)", line, func, file, list->size, (void*)node, value);
+    debugf(LINKEDLIST_DEBUG, TXT_GRN("LLIN")"[%ld (%s){%s}]: "TXT_BLU("[%d]")" N=("TXT_MAG("%p")") D=("TXT_MAG("%p")")", line, func, file, list->size, (void*)node, value);
     if (node == 0) {debugf(LINKEDLIST_DEBUG, "\n");return -1;}
     LinkedListNode* new = linkedlist_init_node(list, value);
     list->size ++;
-    debugf(LINKEDLIST_DEBUG, " NN=(%p)\n", (void*)node->next);
+    debugf(LINKEDLIST_DEBUG, " NN=("TXT_MAG("%p")")\n", (void*)node->next);
     if (node->next) {
         node->next->prev = new;
         new->next = node->next;

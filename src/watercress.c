@@ -26,12 +26,17 @@ static char* HelpText[] = {
     "      (escres) - debug escape code resolution"
 };
 int main(int argc, char** argv) {
+    // check_dark_mode();
     if (argc > 1) {
         if (!strcmp(argv[1], "--help")) {
             int i = 0;
             while (HelpText[i]) {
                 printf("%s\n", HelpText[i++]);
             }
+            return EXIT_SUCCESS;
+        }
+        if (!strcmp(argv[1], "--colors!")) {
+            printf("RED: "TXT_RED("red")"\nGRN: "TXT_GRN("green")"\nYEL: "TXT_YEL("yellow")"\nBLU: "TXT_BLU("blue")"\nMAG: "TXT_MAG("magenta")"\n");
             return EXIT_SUCCESS;
         }
         if (!strcmp(argv[1], "--dsdbg--")) {
